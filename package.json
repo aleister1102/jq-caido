@@ -1,6 +1,6 @@
 {
   "name": "caido-jq",
-  "version": "1.0.0",
+  "version": "1.0.4",
   "description": "JQ view mode for Caido",
   "author": "aleister1102",
   "type": "module",

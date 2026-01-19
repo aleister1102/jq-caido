@@ -1,7 +1,7 @@
 {
   "id": "jq",
   "name": "JQ",
-  "version": "1.0.0",
+  "version": "1.0.4",
   "description": "JQ view mode for JSON bodies",
   "author": {
     "name": "insomnia1102",
