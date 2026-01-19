@@ -7,11 +7,9 @@ on:
 
 jobs:
   release:
+    runs-on: ubuntu-latest
     permissions:
       contents: write
-
-  release:
-    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
