@@ -1,0 +1,19 @@
+{
+  "id": "jq",
+  "name": "JQ",
+  "version": "1.0.0",
+  "description": "JQ view mode for JSON bodies",
+  "author": {
+    "name": "insomnia1102",
+    "email": "marucube35@gmail.com",
+    "url": "https://github.com/aleister1102/jq-caido"
+  },
+  "plugins": [
+    {
+      "kind": "frontend",
+      "id": "jq-frontend",
+      "name": "JQ Viewer",
+      "entrypoint": "dist/frontend/index.js"
+    }
+  ]
+}
