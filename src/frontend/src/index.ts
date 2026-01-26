@@ -21,37 +21,21 @@ export const init = (caido: Caido) => {
   // Register for both requests and responses across all major surfaces
   if (caido.httpHistory) {
     caido.httpHistory.addRequestViewMode(viewMode);
-    // @ts-ignore
-    if (caido.httpHistory.addResponseViewMode) {
-      // @ts-ignore
-      caido.httpHistory.addResponseViewMode(viewMode);
-    }
+    caido.httpHistory.addResponseViewMode(viewMode);
   }
 
   if (caido.replay) {
     caido.replay.addRequestViewMode(viewMode);
-    // @ts-ignore
-    if (caido.replay.addResponseViewMode) {
-      // @ts-ignore
-      caido.replay.addResponseViewMode(viewMode);
-    }
+    caido.replay.addResponseViewMode(viewMode);
   }
 
   if (caido.search) {
     caido.search.addRequestViewMode(viewMode);
-    // @ts-ignore
-    if (caido.search.addResponseViewMode) {
-      // @ts-ignore
-      caido.search.addResponseViewMode(viewMode);
-    }
+    caido.search.addResponseViewMode(viewMode);
   }
 
   if (caido.sitemap) {
     caido.sitemap.addRequestViewMode(viewMode);
-    // @ts-ignore
-    if (caido.sitemap.addResponseViewMode) {
-      // @ts-ignore
-      caido.sitemap.addResponseViewMode(viewMode);
-    }
+    caido.sitemap.addResponseViewMode(viewMode);
   }
 };
