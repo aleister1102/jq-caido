@@ -27,6 +27,8 @@ const keysOnly = ref(false);
 const filterNulls = ref(false);
 const isLoading = ref(false);
 const showDebug = ref(false);
+const showFullOutput = ref(false);
+let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
 const STORAGE_KEY = "jq-plugin-settings";
 
@@ -141,11 +143,34 @@ const bodyParse = computed(() => {
 
 const highlightedOutput = computed(() => {
   if (!stdout.value) return "";
+  // Skip highlighting for large outputs (> 100KB) to maintain performance
+  if (stdout.value.length > 102400) {
+    return stdout.value;
+  }
   try {
     return Prism.highlight(stdout.value, Prism.languages.json, "json");
   } catch {
     return stdout.value;
   }
+});
+
+const shouldHighlight = computed(() => {
+  return stdout.value && stdout.value.length <= 102400;
+});
+
+const displayOutput = computed(() => {
+  if (!stdout.value) return "";
+  // For very large outputs (> 500KB), truncate unless explicitly showing full
+  const maxDisplayLength = 512000; // 500KB
+  if (stdout.value.length > maxDisplayLength && !showFullOutput.value) {
+    const truncated = stdout.value.slice(0, maxDisplayLength);
+    return truncated + `\n\n[Output truncated - ${((stdout.value.length - maxDisplayLength) / 1024).toFixed(1)} KB more. Click "Show Full Output" to display everything.]`;
+  }
+  return highlightedOutput.value;
+});
+
+const isOutputTruncated = computed(() => {
+  return stdout.value && stdout.value.length > 512000 && !showFullOutput.value;
 });
 
 const debugInfo = computed(() => {
@@ -290,6 +315,8 @@ const executeJq = async () => {
     (result.timedOut ? "Error: jq-wasm timed out (likely wasm failed to load in Caido)" : "") ||
     (result.exitCode !== 0 ? `Error: jq exited with code ${result.exitCode}` : "");
   isLoading.value = false;
+  // Reset full output display when new results arrive
+  showFullOutput.value = false;
 
   lastRun.value = {
     query: query.value,
@@ -301,6 +328,15 @@ const executeJq = async () => {
   };
 
   saveSettings();
+};
+
+const executeJqDebounced = () => {
+  if (debounceTimer) {
+    clearTimeout(debounceTimer);
+  }
+  debounceTimer = setTimeout(() => {
+    void executeJq();
+  }, 300);
 };
 
 onMounted(() => {
@@ -321,6 +357,7 @@ const onQueryInput = (event: Event) => {
   const target = event.target as HTMLInputElement | null;
   if (!target) return;
   query.value = target.value;
+  executeJqDebounced();
 };
 
 const onCompactChange = (event: Event) => {
@@ -380,7 +417,7 @@ const copyDebug = async () => {
 </script>
 
 <template>
-  <div class="jq-view-container flex flex-col h-full p-4 gap-4 overflow-hidden">
+  <div class="jq-view-container flex flex-col p-4 gap-4 overflow-hidden">
     <div class="flex items-center gap-2">
       <input 
         :value="query"
@@ -443,15 +480,22 @@ const copyDebug = async () => {
       
       <div class="flex-1 relative min-h-0 bg-black/20 border border-white/5 rounded overflow-hidden flex flex-col">
         <div class="absolute top-2 right-2 flex gap-2 z-10">
-          <button 
+          <button
             @click="copyToClipboard(stdout)"
             v-if="stdout"
             class="px-2 py-1 bg-white/5 hover:bg-white/10 rounded text-[10px] uppercase tracking-wider opacity-60 hover:opacity-100 transition-all"
           >
             Copy Output
           </button>
+          <button
+            @click="showFullOutput = !showFullOutput"
+            v-if="isOutputTruncated || showFullOutput"
+            class="px-2 py-1 bg-white/5 hover:bg-white/10 rounded text-[10px] uppercase tracking-wider opacity-60 hover:opacity-100 transition-all"
+          >
+            {{ showFullOutput ? 'Show Truncated' : 'Show Full Output' }}
+          </button>
         </div>
-        <pre class="flex-1 p-4 m-0 overflow-auto text-sm font-mono whitespace-pre-wrap selection:bg-white/10 language-json"><code v-html="highlightedOutput || (isLoading ? 'Processing...' : 'No output')"></code></pre>
+        <pre :class="['flex-1 p-4 m-0 overflow-auto text-sm font-mono whitespace-pre-wrap selection:bg-white/10', shouldHighlight && !isOutputTruncated ? 'language-json' : '']"><code v-html="displayOutput || (isLoading ? 'Processing...' : 'No output')"></code></pre>
       </div>
     </div>
   </div>
@@ -459,6 +503,8 @@ const copyDebug = async () => {
 
 <style scoped>
 .jq-view-container {
+  flex: 1 1 0;
+  min-height: 0;
   background-color: transparent;
   color: var(--color-foreground, #fff);
 }

@@ -14,6 +14,10 @@ A port of the Burp Suite extension **burp-jq** to Caido. This plugin adds a "JQ"
   - **No Nulls**: Recursively remove null values from objects.
 - **Persistence**: Remembers your last query and filter settings.
 - **Automatic Fallback**: If the initial message body is missing (headers only), the plugin automatically attempts to fetch the full raw message via Caido's GraphQL API.
+- **Performance Optimizations**:
+  - **Debounced Input**: Query execution is debounced (300ms) to prevent excessive processing while typing.
+  - **Smart Highlighting**: Syntax highlighting is automatically disabled for outputs larger than 100KB to maintain responsiveness.
+  - **Output Truncation**: Very large outputs (>500KB) are truncated with an option to show the full content.
 
 ## Usage
 
