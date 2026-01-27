@@ -495,7 +495,7 @@ const copyDebug = async () => {
             {{ showFullOutput ? 'Show Truncated' : 'Show Full Output' }}
           </button>
         </div>
-        <pre :class="['flex-1 p-4 m-0 overflow-auto text-sm font-mono whitespace-pre-wrap selection:bg-white/10', shouldHighlight && !isOutputTruncated ? 'language-json' : '']"><code v-html="displayOutput || (isLoading ? 'Processing...' : 'No output')"></code></pre>
+        <pre :class="['flex-1 p-4 m-0 overflow-auto text-sm font-mono whitespace-pre-wrap', shouldHighlight && !isOutputTruncated ? 'language-json' : '']"><code v-html="displayOutput || (isLoading ? 'Processing...' : 'No output')"></code></pre>
       </div>
     </div>
   </div>
@@ -512,6 +512,17 @@ const copyDebug = async () => {
 pre {
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+  user-select: text;
+  cursor: text;
+}
+
+pre code {
+  user-select: text;
+}
+
+pre::selection,
+pre *::selection {
+  background-color: rgba(100, 150, 255, 0.4);
 }
 
 /* Prism Dark Theme overrides for Caido */
