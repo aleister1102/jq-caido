@@ -5,9 +5,11 @@ import { setCaido } from "./caido";
 export const init = (caido: Caido) => {
   setCaido(caido);
 
-  const condition = (data: any): boolean => {
-    // Show JQ view mode if there is raw data.
-    return !!data?.raw;
+  const when = (data: unknown): boolean => {
+    if (typeof data === "object" && data !== null && "raw" in data) {
+      return !!(data as { raw: unknown }).raw;
+    }
+    return false;
   };
 
   const viewMode = {
@@ -15,7 +17,7 @@ export const init = (caido: Caido) => {
     view: {
       component: JqViewMode,
     },
-    condition,
+    when,
   };
 
   // Register for both requests and responses across all major surfaces

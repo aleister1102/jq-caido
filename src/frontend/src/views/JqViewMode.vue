@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, watch } from "vue";
-import { extractJsonBody } from "../lib/extractJsonBody";
+import { extractJsonBodyString } from "../lib/extractJsonBody";
 import { runJq } from "../lib/runJq";
 import { getCaido } from "../caido";
+import JqQueryInput from "../components/JqQueryInput.vue";
 import Prism from "prismjs";
 import "prismjs/components/prism-json";
 
@@ -28,6 +29,7 @@ const filterNulls = ref(false);
 const isLoading = ref(false);
 const showDebug = ref(false);
 const showFullOutput = ref(false);
+const parsedJson = ref<any>(null);
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
 const STORAGE_KEY = "jq-plugin-settings";
@@ -131,14 +133,9 @@ const bodyParse = computed(() => {
   if (!text) {
     return { ok: false, type: "(empty)", valuePreview: "" };
   }
-  try {
-    const value = JSON.parse(text);
-    const type = value === null ? "null" : Array.isArray(value) ? "array" : typeof value;
-    const valuePreview = safePreview(JSON.stringify(value, null, 2), 500);
-    return { ok: true, type, valuePreview };
-  } catch {
-    return { ok: false, type: "(parse_error)", valuePreview: safePreview(text, 500) };
-  }
+  // To avoid blocking the main thread for 10-20MB strings, we skip validation here
+  // and let runJq / jq-wasm handle it.
+  return { ok: true, type: "json (unvalidated)", valuePreview: safePreview(text, 500) };
 });
 
 const highlightedOutput = computed(() => {
@@ -237,7 +234,7 @@ const executeJq = async () => {
     return;
   }
 
-  let jsonBody = extractJsonBody(raw);
+  let jsonBody = extractJsonBodyString(raw);
 
   // If Caido only provided headers (no body), fall back to GraphQL request/response(id)->raw
   // and retry parsing from the fully stored raw value.
@@ -263,7 +260,7 @@ const executeJq = async () => {
           raw = fullRaw;
           graphqlFetch.value.ok = true;
           graphqlFetch.value.rawLength = fullRaw.length;
-          jsonBody = extractJsonBody(fullRaw);
+          jsonBody = extractJsonBodyString(fullRaw);
         }
       } else if (caido && responseId) {
         graphqlFetch.value.kind = "response";
@@ -274,7 +271,7 @@ const executeJq = async () => {
           raw = fullRaw;
           graphqlFetch.value.ok = true;
           graphqlFetch.value.rawLength = fullRaw.length;
-          jsonBody = extractJsonBody(fullRaw);
+          jsonBody = extractJsonBodyString(fullRaw);
         }
       }
     } catch (e: any) {
@@ -328,6 +325,19 @@ const executeJq = async () => {
   };
 
   saveSettings();
+  updateParsedJson(jsonBody);
+};
+
+const updateParsedJson = (json: string) => {
+  if (!json || json.length > 5_000_000) {
+    parsedJson.value = null;
+    return;
+  }
+  try {
+    parsedJson.value = JSON.parse(json);
+  } catch {
+    parsedJson.value = null;
+  }
 };
 
 const executeJqDebounced = () => {
@@ -419,12 +429,11 @@ const copyDebug = async () => {
 <template>
   <div class="jq-view-container flex flex-col p-4 gap-4 overflow-hidden">
     <div class="flex items-center gap-2">
-      <input 
-        :value="query"
-        @input="onQueryInput"
-        @keydown.enter="executeJq"
+      <JqQueryInput 
+        v-model="query"
+        :rootJson="parsedJson"
+        @submit="executeJq"
         placeholder="Enter jq query (e.g. .foo[0])"
-        class="flex-1 bg-transparent border border-white/10 rounded px-3 py-1 text-sm focus:outline-none focus:border-white/30"
       />
       <button 
         @click="executeJq"
