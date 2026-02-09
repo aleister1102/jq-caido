@@ -40,7 +40,6 @@ export function useJqRunner(
   keysOnly: Ref<boolean>,
   filterNulls: Ref<boolean>,
   updateParsedJson: (json: string) => void,
-  saveSettings: () => void,
 ) {
   const stdout = ref("");
   const stderr = ref("");
@@ -56,8 +55,10 @@ export function useJqRunner(
   });
 
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+  let generation = 0;
 
   const executeJq = async () => {
+    const thisGen = ++generation;
     let raw = rawInfo.value.raw;
 
     stderr.value = "";
@@ -140,6 +141,8 @@ export function useJqRunner(
     const result = await runJq(jsonBody, effectiveQuery, flags);
     const ended = performance.now?.() ?? Date.now();
 
+    if (thisGen !== generation) return; // stale, discard
+
     stdout.value = result.stdout;
     stderr.value =
       result.stderr ||
@@ -156,7 +159,6 @@ export function useJqRunner(
       stderrLen: result.stderr.length,
     };
 
-    saveSettings();
     updateParsedJson(jsonBody);
   };
 
@@ -168,10 +170,6 @@ export function useJqRunner(
       void executeJq();
     }, 300);
   };
-
-  onMounted(() => {
-    void executeJq();
-  });
 
   onUnmounted(() => {
     if (debounceTimer) clearTimeout(debounceTimer);

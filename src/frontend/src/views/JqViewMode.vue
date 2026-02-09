@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted } from "vue";
+import { computed, onMounted, watch } from "vue";
 import { useSettings } from "../composables/useSettings";
 import { useRawPayload, type PropsShape } from "../composables/useRawPayload";
 import { useJqRunner } from "../composables/useJqRunner";
@@ -20,6 +20,10 @@ const {
   loadSettings,
   saveSettings,
 } = useSettings();
+
+// Load settings immediately at setup time (before useJqRunner)
+loadSettings();
+query.value = ".";
 
 const {
   rawCandidates,
@@ -48,7 +52,6 @@ const {
   keysOnly,
   filterNulls,
   updateParsedJson,
-  saveSettings,
 );
 
 const outputDisplay = useOutputDisplay(stdout);
@@ -82,9 +85,13 @@ const debugInfo = computed(() => {
   };
 });
 
+// Save settings only when the persisted flags change
+watch([isCompact, isRaw, keysOnly, filterNulls], () => {
+  saveSettings();
+});
+
 onMounted(() => {
-  query.value = ".";
-  loadSettings();
+  void executeJq();
 });
 
 const copyToClipboard = (text: string) => {
