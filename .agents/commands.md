@@ -2,12 +2,13 @@
 
 ## Overview
 
-All commands are run from the **repo root**. If `node`/`bun` commands panic from `~/.proto/shims/*`, prefer the explicit binaries below.
+All commands are run from the **repo root**.
 
-## Commands (verified 2026-02-04)
+## Commands
 
 | Goal | Command | Notes | ~Time |
 |---|---|---|---:|
-| Build plugin package | `bun run build` | Produces `dist/plugin_package.zip` | ~2s |
-| Watch/dev | `bun run watch` | Starts Vite dev server | — |
-| Re-zip w/ docs | `bun run package` | Adds `README.md`/`LICENSE` into `dist/plugin_package.zip` | ~1s |
+| Install | `bun install` | Install dependencies | ~5s |
+| Build | `bun run build` | Produces `dist/plugin_package.zip` | ~2s |
+| Watch/dev | `bun run watch` | Rebuilds on file changes; sets `JQ_DEBUG=1` | -- |
+| Package release zip | `bun run package` | Clean build (`JQ_DEBUG=0`) + bundles `README.md`/`LICENSE` | ~3s |
