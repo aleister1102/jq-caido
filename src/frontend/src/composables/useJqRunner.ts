@@ -1,4 +1,4 @@
-import { ref, onMounted, onUnmounted, watch, type Ref, type ComputedRef } from "vue";
+import { ref, onUnmounted, watch, type Ref, type ComputedRef } from "vue";
 import { extractJsonBodyString } from "../lib/extractJsonBody";
 import { runJq } from "../lib/runJq";
 import { getCaido } from "../caido";
