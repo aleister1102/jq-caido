@@ -26,8 +26,11 @@ export function useJqRunner(
   const lastRun = ref<RunMeta | null>(null);
   const graphqlFetch = ref<GraphqlFetchState>({ ...EMPTY_GQL });
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+  let runId = 0;
+  let ready = false;
 
   const executeJq = async () => {
+    const thisRun = ++runId;
     let raw = rawInfo.value.raw;
     stderr.value = "";
 
@@ -54,9 +57,9 @@ export function useJqRunner(
           const res = fetchKind === "request"
             ? await caido.graphql.request({ id: fetchId })
             : await caido.graphql.response({ id: fetchId });
+          if (thisRun !== runId) return;
           const fullRaw = (fetchKind === "request" ? (res as any)?.request?.raw : (res as any)?.response?.raw) as string | undefined;
           if (typeof fullRaw === "string" && fullRaw.length > 0) {
-            raw = fullRaw;
             graphqlFetch.value.ok = true;
             graphqlFetch.value.rawLength = fullRaw.length;
             jsonBody = extractJsonBodyString(fullRaw);
@@ -87,6 +90,7 @@ export function useJqRunner(
 
     const started = performance.now?.() ?? Date.now();
     const result = await runJq(jsonBody, effectiveQuery, flags);
+    if (thisRun !== runId) return;
     const ended = performance.now?.() ?? Date.now();
 
     stdout.value = result.stdout;
@@ -107,12 +111,18 @@ export function useJqRunner(
 
   onUnmounted(() => { if (debounceTimer) clearTimeout(debounceTimer); });
 
-  watch([() => rawInfo.value.raw, isCompact, isRaw, keysOnly, filterNulls], () => { void executeJq(); });
+  watch([() => rawInfo.value.raw, isCompact, isRaw, keysOnly, filterNulls], () => {
+    if (!ready) return;
+    void executeJq();
+  });
 
   watch(() => query.value, () => {
+    if (!ready) return;
     if (debounceTimer) clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => { void executeJq(); }, 300);
   });
 
-  return { stdout, stderr, isLoading, lastRun, graphqlFetch, executeJq };
+  const start = () => { ready = true; };
+
+  return { stdout, stderr, isLoading, lastRun, graphqlFetch, executeJq, start };
 }
