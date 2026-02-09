@@ -6,19 +6,16 @@ Caido frontend plugin (Vue 3 + TypeScript) that runs `jq` via `jq-wasm`.
 
 | Goal | Command |
 |---|---|
-| Build | `PATH="/opt/homebrew/bin:$PATH" /opt/homebrew/bin/node node_modules/.bin/caido-dev build` |
-| Watch | `PATH="/opt/homebrew/bin:$PATH" /opt/homebrew/bin/node node_modules/.bin/caido-dev watch` |
-| Re-zip w/ docs | `PATH="/opt/homebrew/bin:$PATH" /opt/homebrew/bin/node scripts/package.mjs` |
+| Build | `bun run build` or `npm run build` |
+| Watch | `bun run watch` or `npm run watch` |
+| Re-zip w/ docs | `bun run package` or `node scripts/package.mjs` |
 
-Run from repo root. Prefer explicit `/opt/homebrew/bin/node` if proto shims cause issues.
+Run from repo root. If your runtime fails (e.g. proto shims), use Node from your PATH or set it explicitly.
 
 ## Detailed Instructions
 
-- [Commands](.agents/commands.md) — full command table and path note
-- [File map and references](.agents/file-map.md) — layout, golden samples, utilities
-- [Constraints and heuristics](.agents/constraints.md) — boundaries, data handling, codebase state
-
-## Scope Index
-
-- **Frontend:** [src/frontend/AGENTS.md](src/frontend/AGENTS.md)
-- **Scripts:** [scripts/AGENTS.md](scripts/AGENTS.md)
+- [Commands](.agents/commands.md)
+- [File map and references](.agents/file-map.md)
+- [Constraints and heuristics](.agents/constraints.md)
+- [Frontend](.agents/frontend.md)
+- [Scripts](.agents/scripts.md)
