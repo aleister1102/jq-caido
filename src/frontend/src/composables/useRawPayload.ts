@@ -17,6 +17,13 @@ function safePreview(text: string, max = 500): string {
   return text.length <= max ? text : text.slice(0, max) + `\n...[truncated ${text.length - max} chars]`;
 }
 
+function nonEmptyId(...candidates: (string | undefined)[]): string | null {
+  for (const c of candidates) {
+    if (typeof c === "string" && c.trim().length > 0) return c.trim();
+  }
+  return null;
+}
+
 export function useRawPayload(props: ComputedRef<PropsShape>) {
   const parsedJson = ref<any>(null);
 
@@ -39,8 +46,8 @@ export function useRawPayload(props: ComputedRef<PropsShape>) {
   const selectedIds = computed(() => {
     const p = props.value;
     return {
-      requestId: p.request?.id || p.data?.id || p.value?.id || p.item?.id || null,
-      responseId: p.response?.id || null,
+      requestId: nonEmptyId(p.request?.id, p.data?.id, p.value?.id, p.item?.id),
+      responseId: nonEmptyId(p.response?.id),
     };
   });
 
