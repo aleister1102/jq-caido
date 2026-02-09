@@ -39,8 +39,10 @@ export function useSuggestions(
     if (suggestions.value.length) selectedIndex.value = (selectedIndex.value + 1) % suggestions.value.length;
   };
 
+  const setSelectedIndex = (index: number) => { selectedIndex.value = index; };
+
   const show = () => { showSuggestions.value = true; updateSuggestions(); };
   const hide = () => { showSuggestions.value = false; };
 
-  return { showSuggestions, selectedIndex, suggestions, selectSuggestion, navigateUp, navigateDown, show, hide };
+  return { showSuggestions, selectedIndex, suggestions, selectSuggestion, navigateUp, navigateDown, setSelectedIndex, show, hide };
 }
