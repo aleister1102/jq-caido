@@ -1,13 +1,9 @@
 # Commands
 
-## Overview
-
-All commands are run from the **repo root**. If `node`/`bun` commands panic from `~/.proto/shims/*`, prefer the explicit binaries below.
-
-## Commands (verified 2026-02-04)
+All commands run from **repo root**. Use `bun` or `npm`; works on macOS and Linux. If your runtime fails (e.g. proto shims), use Node from your PATH or set it explicitly.
 
 | Goal | Command | Notes | ~Time |
 |---|---|---|---:|
-| Build plugin package | `PATH="/opt/homebrew/bin:$PATH" /opt/homebrew/bin/node node_modules/.bin/caido-dev build` | Produces `dist/plugin_package.zip` | ~2s |
-| Watch/dev | `PATH="/opt/homebrew/bin:$PATH" /opt/homebrew/bin/node node_modules/.bin/caido-dev watch` | Starts Vite dev server | — |
-| Re-zip w/ docs | `PATH="/opt/homebrew/bin:$PATH" /opt/homebrew/bin/node scripts/package.mjs` | Adds `README.md`/`LICENSE` into `dist/plugin_package.zip` | ~1s |
+| Build plugin package | `bun run build` or `npm run build` | Produces `dist/plugin_package.zip` | ~2s |
+| Watch/dev | `bun run watch` or `npm run watch` | Starts Vite dev server | — |
+| Re-zip w/ docs | `bun run package` or `node scripts/package.mjs` | Adds `README.md`/`LICENSE` into zip | ~1s |
