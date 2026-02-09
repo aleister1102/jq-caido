@@ -21,19 +21,11 @@ export type GraphqlFetchState = {
   rawLength: number;
 };
 
-type RawInfo = {
-  raw: string;
-  source: string;
-};
-
-type SelectedIds = {
-  requestId: string | null;
-  responseId: string | null;
-};
+const EMPTY_GQL: GraphqlFetchState = { tried: false, ok: false, kind: null, id: null, error: null, rawLength: 0 };
 
 export function useJqRunner(
-  rawInfo: ComputedRef<RawInfo>,
-  selectedIds: ComputedRef<SelectedIds>,
+  rawInfo: ComputedRef<{ raw: string; source: string }>,
+  selectedIds: ComputedRef<{ requestId: string | null; responseId: string | null }>,
   query: Ref<string>,
   isCompact: Ref<boolean>,
   isRaw: Ref<boolean>,
@@ -45,14 +37,7 @@ export function useJqRunner(
   const stderr = ref("");
   const isLoading = ref(false);
   const lastRun = ref<RunMeta | null>(null);
-  const graphqlFetch = ref<GraphqlFetchState>({
-    tried: false,
-    ok: false,
-    kind: null,
-    id: null,
-    error: null,
-    rawLength: 0,
-  });
+  const graphqlFetch = ref<GraphqlFetchState>({ ...EMPTY_GQL });
 
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
   let generation = 0;
@@ -200,6 +185,5 @@ export function useJqRunner(
     lastRun,
     graphqlFetch,
     executeJq,
-    executeJqDebounced,
   };
 }

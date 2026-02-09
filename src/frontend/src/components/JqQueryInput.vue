@@ -26,6 +26,7 @@ const {
   selectSuggestion: selectSuggestionInternal,
   navigateUp,
   navigateDown,
+  setSelectedIndex,
   show: showSuggestionsDropdown,
   hide: hideSuggestionsDropdown,
 } = useSuggestions(
@@ -33,9 +34,7 @@ const {
   computed(() => props.rootJson),
 );
 
-useClickOutside(containerRef, () => {
-  hideSuggestionsDropdown();
-});
+useClickOutside(containerRef, hideSuggestionsDropdown);
 
 const onInput = (e: Event) => {
   const target = e.target as HTMLInputElement;
@@ -103,7 +102,7 @@ const onKeyDown = (e: KeyboardEvent) => {
       :selectedIndex="selectedIndex"
       :visible="showSuggestions"
       @select="selectSuggestion"
-      @hover="(index) => selectedIndex = index"
+      @hover="setSelectedIndex"
     />
   </div>
 </template>

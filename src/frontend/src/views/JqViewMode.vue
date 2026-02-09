@@ -4,6 +4,7 @@ import { useSettings } from "../composables/useSettings";
 import { useRawPayload, type PropsShape } from "../composables/useRawPayload";
 import { useJqRunner } from "../composables/useJqRunner";
 import { useOutputDisplay } from "../composables/useOutputDisplay";
+import { copyToClipboard } from "../lib/clipboard";
 import JqQueryInput from "../components/JqQueryInput.vue";
 import JqDebugPanel from "../components/JqDebugPanel.vue";
 import JqOutputPanel from "../components/JqOutputPanel.vue";
@@ -43,7 +44,6 @@ const {
   lastRun,
   graphqlFetch,
   executeJq: executeJqInternal,
-  executeJqDebounced,
 } = useJqRunner(
   rawInfo,
   selectedIds,
@@ -93,30 +93,25 @@ watch([isCompact, isRaw, keysOnly, filterNulls], () => {
 onMounted(() => {
   void executeJq();
 });
-
-const copyToClipboard = (text: string) => {
-  navigator.clipboard.writeText(text);
-};
-
 </script>
 
 <template>
   <div class="jq-view-container flex flex-col p-4 gap-4 overflow-hidden">
     <div class="flex items-center gap-2">
-      <JqQueryInput 
+      <JqQueryInput
         v-model="query"
         :rootJson="parsedJson"
         @submit="executeJq"
         placeholder="Enter jq query (e.g. .foo[0])"
       />
-      <button 
+      <button
         @click="executeJq"
         :disabled="isLoading"
         class="px-4 py-1 bg-white/5 hover:bg-white/10 rounded text-sm transition-colors"
       >
         Filter
       </button>
-      <button 
+      <button
         @click="copyToClipboard(query)"
         class="px-3 py-1 bg-white/5 hover:bg-white/10 rounded text-xs transition-colors"
       >
@@ -152,7 +147,7 @@ const copyToClipboard = (text: string) => {
       <div v-if="stderr" class="p-3 bg-red-900/20 border border-red-500/30 rounded text-red-200 text-xs font-mono whitespace-pre-wrap overflow-auto max-h-32">
         {{ stderr }}
       </div>
-      
+
       <JqOutputPanel
         :stdout="stdout"
         :displayOutput="outputDisplay.displayOutput.value"

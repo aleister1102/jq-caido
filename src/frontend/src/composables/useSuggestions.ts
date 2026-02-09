@@ -15,9 +15,7 @@ export function useSuggestions(
       return;
     }
     suggestions.value = getSuggestions(rootJson.value, modelValue.value);
-    if (selectedIndex.value >= suggestions.value.length) {
-      selectedIndex.value = 0;
-    }
+    if (selectedIndex.value >= suggestions.value.length) selectedIndex.value = 0;
   };
 
   watch(() => modelValue.value, () => {
@@ -30,7 +28,7 @@ export function useSuggestions(
 
   const buildQueryFromSuggestion = (currentQuery: string, suggestion: Suggestion): string => {
     let newQuery = currentQuery;
-    
+
     // Replace the prefix with the full suggestion
     const lastDot = newQuery.lastIndexOf(".");
     const lastBracket = newQuery.lastIndexOf("[");
@@ -66,6 +64,8 @@ export function useSuggestions(
     selectedIndex.value = (selectedIndex.value + 1) % suggestions.value.length;
   };
 
+  const setSelectedIndex = (index: number) => { selectedIndex.value = index; };
+
   const show = () => {
     showSuggestions.value = true;
     updateSuggestions();
@@ -82,6 +82,7 @@ export function useSuggestions(
     selectSuggestion,
     navigateUp,
     navigateDown,
+    setSelectedIndex,
     show,
     hide,
   };
