@@ -1,7 +1,6 @@
 <script setup lang="ts">
 const props = defineProps<{
   debugInfo: Record<string, unknown>;
-  visible: boolean;
 }>();
 
 const copyDebug = async () => {
@@ -31,10 +30,7 @@ const copyDebug = async () => {
 </script>
 
 <template>
-  <div
-    v-if="visible"
-    class="p-3 bg-white/5 border border-white/10 rounded text-xs font-mono whitespace-pre-wrap overflow-auto max-h-40 relative"
-  >
+  <div class="p-3 bg-white/5 border border-white/10 rounded text-xs font-mono whitespace-pre-wrap overflow-auto max-h-40 relative">
     <button
       @click="copyDebug"
       class="absolute top-2 right-2 px-2 py-1 bg-white/5 hover:bg-white/10 rounded text-[10px] uppercase tracking-wider opacity-60 hover:opacity-100 transition-all font-sans"

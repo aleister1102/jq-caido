@@ -6,8 +6,8 @@
   "type": "module",
   "scripts": {
     "build": "caido-dev build",
-    "package": "bun scripts/package.mjs",
-    "watch": "caido-dev watch"
+    "package": "JQ_DEBUG=0 caido-dev build && bun scripts/package.mjs",
+    "watch": "JQ_DEBUG=1 caido-dev watch"
   },
   "dependencies": {
     "@caido/sdk-frontend": "^0.55.3",

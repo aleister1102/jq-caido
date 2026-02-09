@@ -53,6 +53,9 @@ const {
 
 const outputDisplay = useOutputDisplay(stdout);
 
+declare const __JQ_DEBUG__: boolean;
+const isDev = typeof __JQ_DEBUG__ !== "undefined" && __JQ_DEBUG__;
+
 const executeJq = async () => {
   await executeJqInternal();
   outputDisplay.resetFullOutput();
@@ -127,14 +130,14 @@ const copyToClipboard = (text: string) => {
         <input type="checkbox" v-model="filterNulls" class="rounded bg-transparent border-white/10" />
         No Nulls
       </label>
-      <label class="flex items-center gap-2 text-xs cursor-pointer select-none">
+      <label v-if="isDev" class="flex items-center gap-2 text-xs cursor-pointer select-none">
         <input type="checkbox" v-model="showDebug" class="rounded bg-transparent border-white/10" />
         Debug
       </label>
     </div>
 
     <div class="flex-1 flex flex-col min-h-0 gap-2">
-      <JqDebugPanel :debugInfo="debugInfo" :visible="showDebug" />
+      <JqDebugPanel v-if="isDev && showDebug" :debugInfo="debugInfo" />
       <div v-if="stderr" class="p-3 bg-red-900/20 border border-red-500/30 rounded text-red-200 text-xs font-mono whitespace-pre-wrap overflow-auto max-h-32">
         {{ stderr }}
       </div>
