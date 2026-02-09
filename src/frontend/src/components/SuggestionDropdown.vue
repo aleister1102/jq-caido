@@ -15,6 +15,10 @@ const emit = defineEmits<{
 
 const itemRefs = ref<(HTMLElement | null)[]>([]);
 
+watch(() => props.suggestions.length, (len) => {
+  itemRefs.value.length = len;
+});
+
 watch(
   () => props.selectedIndex,
   async () => {
