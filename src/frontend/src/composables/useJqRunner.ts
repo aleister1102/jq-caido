@@ -66,6 +66,9 @@ export function useJqRunner(
     if (!raw) {
       stdout.value = "";
       stderr.value = "Error: No raw content provided to this view mode. Enable Debug to inspect received props.";
+      if (thisGen === generation) {
+        isLoading.value = false;
+      }
       return;
     }
 
