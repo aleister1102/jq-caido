@@ -3,7 +3,6 @@ import { ref } from "vue";
 const STORAGE_KEY = "jq-plugin-settings";
 
 export function useSettings() {
-  const query = ref(".");
   const isCompact = ref(true);
   const isRaw = ref(true);
   const keysOnly = ref(false);
@@ -41,7 +40,6 @@ export function useSettings() {
   };
 
   return {
-    query,
     isCompact,
     isRaw,
     keysOnly,

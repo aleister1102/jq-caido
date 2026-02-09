@@ -1,4 +1,4 @@
-import { computed, ref, type Ref } from "vue";
+import { computed, ref, watch, type Ref } from "vue";
 import Prism from "prismjs";
 import "prismjs/components/prism-json";
 
@@ -39,6 +39,11 @@ export function useOutputDisplay(stdout: Ref<string>) {
 
   const isOutputTruncated = computed<boolean>(() => {
     return !!stdout.value && stdout.value.length > 512000 && !showFullOutput.value;
+  });
+
+  // Auto-reset when new output arrives so truncation is re-applied for large results.
+  watch(stdout, () => {
+    showFullOutput.value = false;
   });
 
   const resetFullOutput = () => {

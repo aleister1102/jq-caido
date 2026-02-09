@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, watch } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { useSettings } from "../composables/useSettings";
 import { useRawPayload, type PropsShape } from "../composables/useRawPayload";
 import { useJqRunner } from "../composables/useJqRunner";
@@ -11,7 +11,6 @@ import JqOutputPanel from "../components/JqOutputPanel.vue";
 const props = defineProps<PropsShape>();
 
 const {
-  query,
   isCompact,
   isRaw,
   keysOnly,
@@ -21,9 +20,11 @@ const {
   saveSettings,
 } = useSettings();
 
-// Load settings immediately at setup time (before useJqRunner)
+// Query is intentionally not persisted — always starts fresh with the identity filter.
+const query = ref(".");
+
+// Load persisted toggle settings before useJqRunner sets up its watchers.
 loadSettings();
-query.value = ".";
 
 const {
   rawCandidates,
@@ -61,7 +62,6 @@ const isDev = typeof __JQ_DEBUG__ !== "undefined" && __JQ_DEBUG__;
 
 const executeJq = async () => {
   await executeJqInternal();
-  outputDisplay.resetFullOutput();
 };
 
 const debugInfo = computed(() => {
@@ -122,6 +122,9 @@ const copyToClipboard = (text: string) => {
       >
         Copy Query
       </button>
+      <!-- v-model works correctly with the current Caido SDK (0.x) view mode host.
+           Older versions had binding issues requiring explicit :checked + @change;
+           revert to that pattern if a future SDK update breaks two-way binding. -->
       <label class="flex items-center gap-2 text-xs cursor-pointer select-none">
         <input type="checkbox" v-model="isCompact" class="rounded bg-transparent border-white/10" />
         Compact
