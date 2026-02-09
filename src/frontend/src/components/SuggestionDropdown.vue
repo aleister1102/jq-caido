@@ -1,7 +1,8 @@
 <script setup lang="ts">
+import { ref, watch, nextTick } from "vue";
 import type { Suggestion } from "../lib/jq-suggestion";
 
-defineProps<{
+const props = defineProps<{
   suggestions: Suggestion[];
   selectedIndex: number;
   visible: boolean;
@@ -11,6 +12,20 @@ const emit = defineEmits<{
   (e: "select", suggestion: Suggestion): void;
   (e: "hover", index: number): void;
 }>();
+
+const itemRefs = ref<(HTMLElement | null)[]>([]);
+
+watch(
+  () => props.selectedIndex,
+  async () => {
+    if (!props.visible || props.suggestions.length === 0) return;
+    await nextTick();
+    const selectedElement = itemRefs.value[props.selectedIndex];
+    if (selectedElement) {
+      selectedElement.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
+  },
+);
 </script>
 
 <template>
@@ -22,6 +37,7 @@ const emit = defineEmits<{
     <div
       v-for="(suggestion, index) in suggestions"
       :key="suggestion.text"
+      :ref="(el) => { if (el) itemRefs[index] = el as HTMLElement }"
       @click="emit('select', suggestion)"
       @mouseover="emit('hover', index)"
       :class="[
