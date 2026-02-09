@@ -6,9 +6,9 @@ Caido frontend plugin (Vue 3 + TypeScript) that runs `jq` via `jq-wasm`.
 
 | Goal | Command |
 |---|---|
-| Build | `bun run build` or `npm run build` |
-| Watch | `bun run watch` or `npm run watch` |
-| Re-zip w/ docs | `bun run package` or `node scripts/package.mjs` |
+| Build | `bun run build` |
+| Watch | `bun run watch` |
+| Re-zip w/ docs | `bun run package` |
 
 Run from repo root. If your runtime fails (e.g. proto shims), use Node from your PATH or set it explicitly.
 

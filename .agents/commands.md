@@ -8,6 +8,6 @@ All commands are run from the **repo root**. If `node`/`bun` commands panic from
 
 | Goal | Command | Notes | ~Time |
 |---|---|---|---:|
-| Build plugin package | `PATH="/opt/homebrew/bin:$PATH" /opt/homebrew/bin/node node_modules/.bin/caido-dev build` | Produces `dist/plugin_package.zip` | ~2s |
-| Watch/dev | `PATH="/opt/homebrew/bin:$PATH" /opt/homebrew/bin/node node_modules/.bin/caido-dev watch` | Starts Vite dev server | — |
-| Re-zip w/ docs | `PATH="/opt/homebrew/bin:$PATH" /opt/homebrew/bin/node scripts/package.mjs` | Adds `README.md`/`LICENSE` into `dist/plugin_package.zip` | ~1s |
+| Build plugin package | `bun run build` | Produces `dist/plugin_package.zip` | ~2s |
+| Watch/dev | `bun run watch` | Starts Vite dev server | — |
+| Re-zip w/ docs | `bun run package` | Adds `README.md`/`LICENSE` into `dist/plugin_package.zip` | ~1s |
