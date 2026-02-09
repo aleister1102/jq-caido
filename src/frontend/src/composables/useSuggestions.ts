@@ -10,80 +10,37 @@ export function useSuggestions(
   const suggestions = ref<Suggestion[]>([]);
 
   const updateSuggestions = () => {
-    if (!rootJson.value) {
-      suggestions.value = [];
-      return;
-    }
+    if (!rootJson.value) { suggestions.value = []; return; }
     suggestions.value = getSuggestions(rootJson.value, modelValue.value);
-    if (selectedIndex.value >= suggestions.value.length) {
-      selectedIndex.value = 0;
-    }
+    if (selectedIndex.value >= suggestions.value.length) selectedIndex.value = 0;
   };
 
-  watch(() => modelValue.value, () => {
-    updateSuggestions();
-  });
+  watch([() => modelValue.value, () => rootJson.value], updateSuggestions);
 
-  watch(() => rootJson.value, () => {
-    updateSuggestions();
-  });
-
-  const buildQueryFromSuggestion = (currentQuery: string, suggestion: Suggestion): string => {
-    let newQuery = currentQuery;
-    
-    // Replace the prefix with the full suggestion
-    const lastDot = newQuery.lastIndexOf(".");
-    const lastBracket = newQuery.lastIndexOf("[");
-    const lastBoundary = Math.max(lastDot, lastBracket);
-
+  const selectSuggestion = (suggestion: Suggestion): string => {
+    const q = modelValue.value;
+    const lastBoundary = Math.max(q.lastIndexOf("."), q.lastIndexOf("["));
+    let newQuery: string;
     if (lastBoundary === -1) {
       newQuery = "." + suggestion.text;
     } else {
-      const basePath = newQuery.slice(0, lastBoundary);
-      if (suggestion.type === "index") {
-        newQuery = basePath + suggestion.text;
-      } else {
-        newQuery = basePath + "." + suggestion.text;
-      }
+      const base = q.slice(0, lastBoundary);
+      newQuery = suggestion.type === "index" ? base + suggestion.text : base + "." + suggestion.text;
     }
-
-    return newQuery;
-  };
-
-  const selectSuggestion = (suggestion: Suggestion): string => {
-    const newQuery = buildQueryFromSuggestion(modelValue.value, suggestion);
     showSuggestions.value = false;
     return newQuery;
   };
 
   const navigateUp = () => {
-    if (suggestions.value.length === 0) return;
-    selectedIndex.value = (selectedIndex.value - 1 + suggestions.value.length) % suggestions.value.length;
+    if (suggestions.value.length) selectedIndex.value = (selectedIndex.value - 1 + suggestions.value.length) % suggestions.value.length;
   };
 
   const navigateDown = () => {
-    if (suggestions.value.length === 0) return;
-    selectedIndex.value = (selectedIndex.value + 1) % suggestions.value.length;
+    if (suggestions.value.length) selectedIndex.value = (selectedIndex.value + 1) % suggestions.value.length;
   };
 
-  const show = () => {
-    showSuggestions.value = true;
-    updateSuggestions();
-  };
+  const show = () => { showSuggestions.value = true; updateSuggestions(); };
+  const hide = () => { showSuggestions.value = false; };
 
-  const hide = () => {
-    showSuggestions.value = false;
-  };
-
-  return {
-    showSuggestions,
-    selectedIndex,
-    suggestions,
-    updateSuggestions,
-    selectSuggestion,
-    navigateUp,
-    navigateDown,
-    show,
-    hide,
-  };
+  return { showSuggestions, selectedIndex, suggestions, selectSuggestion, navigateUp, navigateDown, show, hide };
 }

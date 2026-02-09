@@ -33,9 +33,7 @@ const {
   computed(() => props.rootJson),
 );
 
-useClickOutside(containerRef, () => {
-  hideSuggestionsDropdown();
-});
+useClickOutside(containerRef, hideSuggestionsDropdown);
 
 const onInput = (e: Event) => {
   const target = e.target as HTMLInputElement;

@@ -9,4 +9,3 @@ export function setCaido(caido: Caido) {
 export function getCaido(): Caido | null {
   return caidoInstance;
 }
-
