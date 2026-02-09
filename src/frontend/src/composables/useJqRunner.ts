@@ -1,4 +1,4 @@
-import { ref, onMounted, onUnmounted, watch, type Ref, type ComputedRef } from "vue";
+import { ref, onUnmounted, watch, type Ref, type ComputedRef } from "vue";
 import { extractJsonBodyString } from "../lib/extractJsonBody";
 import { runJq } from "../lib/runJq";
 import { getCaido } from "../caido";
@@ -59,13 +59,14 @@ export function useJqRunner(
 
   const executeJq = async () => {
     const thisGen = ++generation;
-    let raw = rawInfo.value.raw;
+    const raw = rawInfo.value.raw;
 
     stderr.value = "";
 
     if (!raw) {
       stdout.value = "";
       stderr.value = "Error: No raw content provided to this view mode. Enable Debug to inspect received props.";
+      if (thisGen === generation) isLoading.value = false;
       return;
     }
 
@@ -92,7 +93,6 @@ export function useJqRunner(
           const res = await caido.graphql.request({ id: requestId });
           const fullRaw = res?.request?.raw;
           if (typeof fullRaw === "string" && fullRaw.length > 0) {
-            raw = fullRaw;
             graphqlFetch.value.ok = true;
             graphqlFetch.value.rawLength = fullRaw.length;
             jsonBody = extractJsonBodyString(fullRaw);
@@ -103,7 +103,6 @@ export function useJqRunner(
           const res = await caido.graphql.response({ id: responseId });
           const fullRaw = res?.response?.raw;
           if (typeof fullRaw === "string" && fullRaw.length > 0) {
-            raw = fullRaw;
             graphqlFetch.value.ok = true;
             graphqlFetch.value.rawLength = fullRaw.length;
             jsonBody = extractJsonBodyString(fullRaw);
@@ -120,6 +119,7 @@ export function useJqRunner(
         graphqlFetch.value.tried && !graphqlFetch.value.ok
           ? `Error: Body is not valid JSON (and GraphQL fallback failed: ${graphqlFetch.value.error ?? "no raw returned"})`
           : "Error: Body is not valid JSON";
+      if (thisGen === generation) isLoading.value = false;
       return;
     }
 
@@ -137,29 +137,34 @@ export function useJqRunner(
       effectiveQuery = `(${effectiveQuery}) | walk(if type == "object" then with_entries(select(.value != null)) else . end)`;
     }
 
-    const started = performance.now?.() ?? Date.now();
-    const result = await runJq(jsonBody, effectiveQuery, flags);
-    const ended = performance.now?.() ?? Date.now();
+    try {
+      const started = performance.now?.() ?? Date.now();
+      const result = await runJq(jsonBody, effectiveQuery, flags);
+      const ended = performance.now?.() ?? Date.now();
 
-    if (thisGen !== generation) return; // stale, discard
+      if (thisGen !== generation) return; // stale, discard
 
-    stdout.value = result.stdout;
-    stderr.value =
-      result.stderr ||
-      (result.timedOut ? "Error: jq-wasm timed out (likely wasm failed to load in Caido)" : "") ||
-      (result.exitCode !== 0 ? `Error: jq exited with code ${result.exitCode}` : "");
-    isLoading.value = false;
+      stdout.value = result.stdout;
+      stderr.value =
+        result.stderr ||
+        (result.timedOut ? "Error: jq-wasm timed out (likely wasm failed to load in Caido)" : "") ||
+        (result.exitCode !== 0 ? `Error: jq exited with code ${result.exitCode}` : "");
 
-    lastRun.value = {
-      query: query.value,
-      flags,
-      durationMs: Math.max(0, Math.round(ended - started)),
-      exitCode: result.exitCode,
-      stdoutLen: result.stdout.length,
-      stderrLen: result.stderr.length,
-    };
+      lastRun.value = {
+        query: query.value,
+        flags,
+        durationMs: Math.max(0, Math.round(ended - started)),
+        exitCode: result.exitCode,
+        stdoutLen: result.stdout.length,
+        stderrLen: result.stderr.length,
+      };
 
-    updateParsedJson(jsonBody);
+      updateParsedJson(jsonBody);
+    } finally {
+      if (thisGen === generation) {
+        isLoading.value = false;
+      }
+    }
   };
 
   const executeJqDebounced = () => {
