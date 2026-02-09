@@ -14,7 +14,7 @@ const props = defineProps<PropsShape>();
 const { query, isCompact, isRaw, keysOnly, filterNulls, showDebug, loadSettings, saveSettings } = useSettings();
 const { rawCandidates, rawInfo, selectedIds, bodyText, bodyParse, parsedJson, updateParsedJson } = useRawPayload(computed(() => props));
 
-const { stdout, stderr, isLoading, lastRun, graphqlFetch, executeJq: executeJqInternal } = useJqRunner(
+const { stdout, stderr, isLoading, lastRun, graphqlFetch, executeJq: executeJqInternal, start } = useJqRunner(
   rawInfo, selectedIds, query, isCompact, isRaw, keysOnly, filterNulls, updateParsedJson, saveSettings,
 );
 
@@ -51,6 +51,7 @@ const debugInfo = computed(() => ({
 
 onMounted(() => {
   loadSettings();
+  start();
   void executeJq();
 });
 </script>
