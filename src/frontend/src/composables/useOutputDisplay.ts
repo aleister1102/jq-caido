@@ -47,7 +47,6 @@ export function useOutputDisplay(stdout: Ref<string>) {
 
   return {
     showFullOutput,
-    highlightedOutput,
     shouldHighlight,
     displayOutput,
     isOutputTruncated,

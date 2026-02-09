@@ -92,7 +92,6 @@ export function useRawPayload(props: ComputedRef<PropsShape>) {
   return {
     rawCandidates,
     rawInfo,
-    idCandidates,
     selectedIds,
     bodyText,
     bodyParse,

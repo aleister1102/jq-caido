@@ -79,7 +79,6 @@ export function useSuggestions(
     showSuggestions,
     selectedIndex,
     suggestions,
-    updateSuggestions,
     selectSuggestion,
     navigateUp,
     navigateDown,
