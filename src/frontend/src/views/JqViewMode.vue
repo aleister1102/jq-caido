@@ -83,8 +83,22 @@ onMounted(() => {
   loadSettings();
 });
 
-const copyToClipboard = (text: string) => {
-  navigator.clipboard.writeText(text);
+const copyToClipboard = async (text: string) => {
+  if (!navigator.clipboard || typeof navigator.clipboard.writeText !== "function") {
+    if (typeof window !== "undefined" && typeof window.alert === "function") {
+      window.alert("Copy to clipboard is not supported in this browser. Please copy the text manually.");
+    }
+    return;
+  }
+
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch (error) {
+    console.error("Failed to copy to clipboard:", error);
+    if (typeof window !== "undefined" && typeof window.alert === "function") {
+      window.alert("Failed to copy to clipboard. You may need to copy the text manually.");
+    }
+  }
 };
 
 </script>
