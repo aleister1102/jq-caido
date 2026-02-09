@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, watch } from "vue";
+import { computed, ref, onMounted, onUnmounted, watch } from "vue";
 import { extractJsonBodyString } from "../lib/extractJsonBody";
 import { runJq } from "../lib/runJq";
 import { getCaido } from "../caido";
@@ -107,18 +107,6 @@ const selectedIds = computed(() => {
   };
 });
 
-function extractBodyText(raw: string): string {
-  if (!raw) return "";
-
-  if (raw.includes("\r\n\r\n") || raw.includes("\n\n")) {
-    const separator = raw.includes("\r\n\r\n") ? "\r\n\r\n" : "\n\n";
-    const parts = raw.split(separator);
-    if (parts.length < 2) return "";
-    return parts.slice(1).join(separator).trim();
-  }
-
-  return raw.trim();
-}
 
 function safePreview(text: string, max = 500): string {
   if (!text) return "";
@@ -126,7 +114,7 @@ function safePreview(text: string, max = 500): string {
   return text.slice(0, max) + `\n...[truncated ${text.length - max} chars]`;
 }
 
-const bodyText = computed(() => extractBodyText(rawInfo.value.raw));
+const bodyText = computed(() => extractJsonBodyString(rawInfo.value.raw) ?? "");
 
 const bodyParse = computed(() => {
   const text = bodyText.value;
@@ -138,16 +126,20 @@ const bodyParse = computed(() => {
   return { ok: true, type: "json (unvalidated)", valuePreview: safePreview(text, 500) };
 });
 
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
 const highlightedOutput = computed(() => {
   if (!stdout.value) return "";
   // Skip highlighting for large outputs (> 100KB) to maintain performance
   if (stdout.value.length > 102400) {
-    return stdout.value;
+    return escapeHtml(stdout.value);
   }
   try {
     return Prism.highlight(stdout.value, Prism.languages.json, "json");
   } catch {
-    return stdout.value;
+    return escapeHtml(stdout.value);
   }
 });
 
@@ -354,6 +346,10 @@ onMounted(() => {
   void executeJq();
 });
 
+onUnmounted(() => {
+  if (debounceTimer) clearTimeout(debounceTimer);
+});
+
 watch([() => rawInfo.value.raw, isCompact, isRaw, keysOnly, filterNulls], () => {
   void executeJq();
 });
@@ -419,8 +415,8 @@ const copyDebug = async () => {
       textarea.select();
       document.execCommand("copy");
       document.body.removeChild(textarea);
-    } catch {
-      // ignore
+    } catch (e) {
+      console.warn("JQ: clipboard fallback failed", e);
     }
   }
 };

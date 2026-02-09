@@ -5,7 +5,7 @@
     "": {
       "name": "caido-jq",
       "dependencies": {
-        "@caido/sdk-frontend": "^0.55.1",
+        "@caido/sdk-frontend": "^0.55.3",
         "jq-wasm": "^1.1.0-jq-1.8.1",
         "prismjs": "^1.30.0",
         "vue": "^3.5.13",
@@ -33,7 +33,7 @@
 
     "@caido/plugin-manifest": ["@caido/plugin-manifest@0.3.0", "", { "dependencies": { "ajv": "^8.17.0" } }, "sha512-HRGHf65K2sfSdaEUwkCNDlurJ4zL0bOUg/Db4u6CrwjTTzmg2gOzP6SzLRj+69gWmxOm5LUjhInNHaMIRmQkHw=="],
 
-    "@caido/sdk-frontend": ["@caido/sdk-frontend@0.55.2", "", { "peerDependencies": { "@ai-sdk/provider": "^3.0.1", "@codemirror/state": "^6.0.0", "@codemirror/view": "^6.0.0", "vue": "^3.0.0" } }, "sha512-jHPUUvvs51hcVq3J6vVWitXU7lgPr90RpRfvxR3NchEDOG1/Uv2lCKTZzlDqoDjuO5KulgRzEKZNgKh6bTPeqQ=="],
+    "@caido/sdk-frontend": ["@caido/sdk-frontend@0.55.3", "", { "peerDependencies": { "@ai-sdk/provider": "^3.0.1", "@codemirror/state": "^6.0.0", "@codemirror/view": "^6.0.0", "vue": "^3.0.0" } }, "sha512-ALKnwVAaOQthX9ZVZwJJaQE6abQtvlhjL2kK9a6z0dzfrygAj8LqIV7PKanqzona+8g1DkLJ5ptjNd0q/XtcAA=="],
 
     "@codemirror/state": ["@codemirror/state@6.5.3", "", { "dependencies": { "@marijn/find-cluster-break": "^1.0.0" } }, "sha512-MerMzJzlXogk2fxWFU1nKp36bY5orBG59HnPiz0G9nLRebWa0zXuv2siH6PLIHBvv5TH8CkQRqjBs0MlxCZu+A=="],
 

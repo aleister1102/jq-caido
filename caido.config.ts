@@ -5,7 +5,7 @@ export default defineConfig({
   id: "jq",
   name: "JQ",
   description: "JQ view mode for JSON bodies",
-  version: "1.0.4",
+  version: "1.2.0",
   author: {
     name: "insomnia1102",
   },
