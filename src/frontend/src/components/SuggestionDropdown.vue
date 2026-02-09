@@ -1,0 +1,59 @@
+<script setup lang="ts">
+import type { Suggestion } from "../lib/jq-suggestion";
+
+defineProps<{
+  suggestions: Suggestion[];
+  selectedIndex: number;
+  visible: boolean;
+}>();
+
+const emit = defineEmits<{
+  (e: "select", suggestion: Suggestion): void;
+  (e: "hover", index: number): void;
+}>();
+</script>
+
+<template>
+  <div
+    v-if="visible && suggestions.length > 0"
+    class="absolute left-0 right-0 top-full mt-1 bg-neutral-900 border border-white/10 rounded shadow-xl z-50 max-h-60 overflow-auto"
+    style="background-color: #1a1a1a;"
+    role="listbox"
+  >
+    <button
+      v-for="(suggestion, index) in suggestions"
+      :key="suggestion.text"
+      type="button"
+      role="option"
+      :aria-selected="index === selectedIndex"
+      @click="emit('select', suggestion)"
+      @mouseover="emit('hover', index)"
+      :class="[
+        'px-3 py-2 text-sm cursor-pointer flex items-center justify-between transition-colors w-full text-left',
+        index === selectedIndex ? 'bg-white/10 text-white' : 'text-white/60'
+      ]"
+    >
+      <span>{{ suggestion.text }}</span>
+      <span class="text-[10px] uppercase opacity-40 px-1 border border-white/10 rounded">{{ suggestion.type }}</span>
+    </button>
+  </div>
+</template>
+
+<style scoped>
+.max-h-60::-webkit-scrollbar {
+  width: 4px;
+}
+
+.max-h-60::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.max-h-60::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+}
+
+.max-h-60::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+</style>

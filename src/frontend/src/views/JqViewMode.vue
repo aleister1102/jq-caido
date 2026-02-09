@@ -1,507 +1,81 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted, watch } from "vue";
-import { extractJsonBodyString } from "../lib/extractJsonBody";
-import { runJq } from "../lib/runJq";
-import { getCaido } from "../caido";
+import { computed, onMounted, type Ref } from "vue";
+import { useSettings } from "../composables/useSettings";
+import { useRawPayload, type PropsShape } from "../composables/useRawPayload";
+import { useJqRunner } from "../composables/useJqRunner";
+import { useOutputDisplay } from "../composables/useOutputDisplay";
+import { copyToClipboard } from "../lib/clipboard";
 import JqQueryInput from "../components/JqQueryInput.vue";
-import Prism from "prismjs";
-import "prismjs/components/prism-json";
+import JqDebugPanel from "../components/JqDebugPanel.vue";
+import JqOutputPanel from "../components/JqOutputPanel.vue";
 
-type RawCarrier = { raw?: string } | undefined;
+const props = defineProps<PropsShape>();
 
-const props = defineProps<{
-  // Caido may pass the current message under different prop names depending on surface/view.
-  data?: RawCarrier;
-  request?: RawCarrier;
-  response?: RawCarrier;
-  value?: RawCarrier;
-  item?: RawCarrier;
-  raw?: string;
-}>();
+const { query, isCompact, isRaw, keysOnly, filterNulls, showDebug, loadSettings, saveSettings } = useSettings();
+const { rawCandidates, rawInfo, selectedIds, bodyText, bodyParse, parsedJson, updateParsedJson } = useRawPayload(computed(() => props));
 
-const query = ref(".");
-const stdout = ref("");
-const stderr = ref("");
-const isCompact = ref(true);
-const isRaw = ref(true);
-const keysOnly = ref(false);
-const filterNulls = ref(false);
-const isLoading = ref(false);
-const showDebug = ref(false);
-const showFullOutput = ref(false);
-const parsedJson = ref<any>(null);
-let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+const { stdout, stderr, isLoading, lastRun, graphqlFetch, executeJq: executeJqInternal, start } = useJqRunner(
+  rawInfo, selectedIds, query, isCompact, isRaw, keysOnly, filterNulls, updateParsedJson, saveSettings,
+);
 
-const STORAGE_KEY = "jq-plugin-settings";
-
-type RunMeta = {
-  query: string;
-  flags: string[];
-  durationMs: number;
-  exitCode: number;
-  stdoutLen: number;
-  stderrLen: number;
-};
-
-const lastRun = ref<RunMeta | null>(null);
-
-type GraphqlFetchState = {
-  tried: boolean;
-  ok: boolean;
-  kind: "request" | "response" | null;
-  id: string | null;
-  error: string | null;
-  rawLength: number;
-};
-
-const graphqlFetch = ref<GraphqlFetchState>({
-  tried: false,
-  ok: false,
-  kind: null,
-  id: null,
-  error: null,
-  rawLength: 0,
-});
-
-const rawCandidates = computed<Record<string, string | undefined>>(() => ({
-  raw: (props as any).raw,
-  data: (props as any).data?.raw,
-  request: (props as any).request?.raw,
-  response: (props as any).response?.raw,
-  value: (props as any).value?.raw,
-  item: (props as any).item?.raw,
-}));
-
-const rawInfo = computed(() => {
-  for (const [source, raw] of Object.entries(rawCandidates.value)) {
-    if (typeof raw === "string" && raw.length > 0) {
-      return { raw, source };
-    }
-  }
-  return { raw: "", source: "" };
-});
-
-const idCandidates = computed<Record<string, string | undefined>>(() => ({
-  request: (props as any).request?.id,
-  response: (props as any).response?.id,
-  data: (props as any).data?.id,
-  value: (props as any).value?.id,
-  item: (props as any).item?.id,
-}));
-
-const selectedIds = computed(() => {
-  const requestId = Object.values({
-    request: idCandidates.value.request,
-    data: idCandidates.value.data,
-    value: idCandidates.value.value,
-    item: idCandidates.value.item,
-  }).find((v) => typeof v === "string" && v.length > 0);
-
-  const responseId = Object.values({ response: idCandidates.value.response }).find(
-    (v) => typeof v === "string" && v.length > 0,
-  );
-
-  return {
-    requestId: (requestId as string | undefined) ?? null,
-    responseId: (responseId as string | undefined) ?? null,
-  };
-});
-
-
-function safePreview(text: string, max = 500): string {
-  if (!text) return "";
-  if (text.length <= max) return text;
-  return text.slice(0, max) + `\n...[truncated ${text.length - max} chars]`;
-}
-
-const bodyText = computed(() => extractJsonBodyString(rawInfo.value.raw) ?? "");
-
-const bodyParse = computed(() => {
-  const text = bodyText.value;
-  if (!text) {
-    return { ok: false, type: "(empty)", valuePreview: "" };
-  }
-  // To avoid blocking the main thread for 10-20MB strings, we skip validation here
-  // and let runJq / jq-wasm handle it.
-  return { ok: true, type: "json (unvalidated)", valuePreview: safePreview(text, 500) };
-});
-
-function escapeHtml(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
-
-const highlightedOutput = computed(() => {
-  if (!stdout.value) return "";
-  // Skip highlighting for large outputs (> 100KB) to maintain performance
-  if (stdout.value.length > 102400) {
-    return escapeHtml(stdout.value);
-  }
-  try {
-    return Prism.highlight(stdout.value, Prism.languages.json, "json");
-  } catch {
-    return escapeHtml(stdout.value);
-  }
-});
-
-const shouldHighlight = computed(() => {
-  return stdout.value && stdout.value.length <= 102400;
-});
-
-const displayOutput = computed(() => {
-  if (!stdout.value) return "";
-  // For very large outputs (> 500KB), truncate unless explicitly showing full
-  const maxDisplayLength = 512000; // 500KB
-  if (stdout.value.length > maxDisplayLength && !showFullOutput.value) {
-    const truncated = stdout.value.slice(0, maxDisplayLength);
-    return truncated + `\n\n[Output truncated - ${((stdout.value.length - maxDisplayLength) / 1024).toFixed(1)} KB more. Click "Show Full Output" to display everything.]`;
-  }
-  return highlightedOutput.value;
-});
-
-const isOutputTruncated = computed(() => {
-  return stdout.value && stdout.value.length > 512000 && !showFullOutput.value;
-});
-
-const debugInfo = computed(() => {
-  const keys = Object.keys(props as any);
-  const candidateLengths = Object.fromEntries(
-    Object.entries(rawCandidates.value).map(([k, v]) => [k, typeof v === "string" ? v.length : 0]),
-  );
-
-  return {
-    rawSource: rawInfo.value.source || "(none)",
-    rawLength: rawInfo.value.raw ? rawInfo.value.raw.length : 0,
-    candidateLengths,
-    ids: selectedIds.value,
-    bodyLength: bodyText.value.length,
-    bodyParseOk: bodyParse.value.ok,
-    bodyType: bodyParse.value.type,
-    bodyPreview: bodyParse.value.valuePreview,
-    lastRun: lastRun.value,
-    graphqlFetch: graphqlFetch.value,
-    keys,
-  };
-});
-
-const loadSettings = () => {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return;
-    const settings = JSON.parse(raw);
-    if (settings?.query) query.value = String(settings.query);
-    if (settings?.isCompact !== undefined) isCompact.value = !!settings.isCompact;
-    if (settings?.isRaw !== undefined) isRaw.value = !!settings.isRaw;
-    if (settings?.keysOnly !== undefined) keysOnly.value = !!settings.keysOnly;
-    if (settings?.filterNulls !== undefined) filterNulls.value = !!settings.filterNulls;
-  } catch (e) {
-    console.error("JQ: Failed to load settings", e);
-  }
-};
-
-const saveSettings = () => {
-  try {
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({
-        query: query.value,
-        isCompact: isCompact.value,
-        isRaw: isRaw.value,
-        keysOnly: keysOnly.value,
-        filterNulls: filterNulls.value,
-      }),
-    );
-  } catch (e) {
-    console.error("JQ: Failed to save settings", e);
-  }
-};
+const { showFullOutput, shouldHighlight, displayOutput, isOutputTruncated } = useOutputDisplay(stdout);
 
 const executeJq = async () => {
-  let raw = rawInfo.value.raw;
-
-  stderr.value = "";
-
-  if (!raw) {
-    stdout.value = "";
-    stderr.value = "Error: No raw content provided to this view mode. Enable Debug to inspect received props.";
-    return;
-  }
-
-  let jsonBody = extractJsonBodyString(raw);
-
-  // If Caido only provided headers (no body), fall back to GraphQL request/response(id)->raw
-  // and retry parsing from the fully stored raw value.
-  if (!jsonBody) {
-    const caido = getCaido();
-    const { requestId, responseId } = selectedIds.value;
-    graphqlFetch.value = {
-      tried: true,
-      ok: false,
-      kind: null,
-      id: null,
-      error: null,
-      rawLength: 0,
-    };
-
-    try {
-      if (caido && requestId) {
-        graphqlFetch.value.kind = "request";
-        graphqlFetch.value.id = requestId;
-        const res = await caido.graphql.request({ id: requestId });
-        const fullRaw = res?.request?.raw;
-        if (typeof fullRaw === "string" && fullRaw.length > 0) {
-          raw = fullRaw;
-          graphqlFetch.value.ok = true;
-          graphqlFetch.value.rawLength = fullRaw.length;
-          jsonBody = extractJsonBodyString(fullRaw);
-        }
-      } else if (caido && responseId) {
-        graphqlFetch.value.kind = "response";
-        graphqlFetch.value.id = responseId;
-        const res = await caido.graphql.response({ id: responseId });
-        const fullRaw = res?.response?.raw;
-        if (typeof fullRaw === "string" && fullRaw.length > 0) {
-          raw = fullRaw;
-          graphqlFetch.value.ok = true;
-          graphqlFetch.value.rawLength = fullRaw.length;
-          jsonBody = extractJsonBodyString(fullRaw);
-        }
-      }
-    } catch (e: any) {
-      graphqlFetch.value.error = e?.message ? String(e.message) : String(e);
-    }
-  }
-
-  if (!jsonBody) {
-    stdout.value = "";
-    stderr.value =
-      graphqlFetch.value.tried && !graphqlFetch.value.ok
-        ? `Error: Body is not valid JSON (and GraphQL fallback failed: ${graphqlFetch.value.error ?? "no raw returned"})`
-        : "Error: Body is not valid JSON";
-    return;
-  }
-
-  isLoading.value = true;
-
-  const flags: string[] = [];
-  if (isCompact.value) flags.push("-c");
-  if (isRaw.value) flags.push("-r");
-
-  let effectiveQuery = query.value || ".";
-  if (keysOnly.value) {
-    effectiveQuery = `(${effectiveQuery}) | keys`;
-  }
-  if (filterNulls.value) {
-    effectiveQuery = `(${effectiveQuery}) | walk(if type == "object" then with_entries(select(.value != null)) else . end)`;
-  }
-
-  const started = performance.now?.() ?? Date.now();
-  const result = await runJq(jsonBody, effectiveQuery, flags);
-  const ended = performance.now?.() ?? Date.now();
-
-  stdout.value = result.stdout;
-  stderr.value =
-    result.stderr ||
-    (result.timedOut ? "Error: jq-wasm timed out (likely wasm failed to load in Caido)" : "") ||
-    (result.exitCode !== 0 ? `Error: jq exited with code ${result.exitCode}` : "");
-  isLoading.value = false;
-  // Reset full output display when new results arrive
+  await executeJqInternal();
   showFullOutput.value = false;
-
-  lastRun.value = {
-    query: query.value,
-    flags,
-    durationMs: Math.max(0, Math.round(ended - started)),
-    exitCode: result.exitCode,
-    stdoutLen: result.stdout.length,
-    stderrLen: result.stderr.length,
-  };
-
-  saveSettings();
-  updateParsedJson(jsonBody);
 };
 
-const updateParsedJson = (json: string) => {
-  if (!json || json.length > 5_000_000) {
-    parsedJson.value = null;
-    return;
-  }
-  try {
-    parsedJson.value = JSON.parse(json);
-  } catch {
-    parsedJson.value = null;
-  }
-};
+const toggles: { label: string; ref: Ref<boolean> }[] = [
+  { label: "Compact", ref: isCompact },
+  { label: "Raw", ref: isRaw },
+  { label: "Keys", ref: keysOnly },
+  { label: "No Nulls", ref: filterNulls },
+  { label: "Debug", ref: showDebug },
+];
 
-const executeJqDebounced = () => {
-  if (debounceTimer) {
-    clearTimeout(debounceTimer);
-  }
-  debounceTimer = setTimeout(() => {
-    void executeJq();
-  }, 300);
-};
+const debugInfo = computed(() => ({
+  rawSource: rawInfo.value.source || "(none)",
+  rawLength: rawInfo.value.raw?.length ?? 0,
+  candidateLengths: Object.fromEntries(
+    Object.entries(rawCandidates.value).map(([k, v]) => [k, typeof v === "string" ? v.length : 0]),
+  ),
+  ids: selectedIds.value,
+  bodyLength: bodyText.value.length,
+  bodyParseOk: bodyParse.value.ok,
+  bodyType: bodyParse.value.type,
+  bodyPreview: bodyParse.value.valuePreview,
+  lastRun: lastRun.value,
+  graphqlFetch: graphqlFetch.value,
+  keys: Object.keys(props as any),
+}));
 
 onMounted(() => {
   loadSettings();
+  start();
   void executeJq();
 });
-
-onUnmounted(() => {
-  if (debounceTimer) clearTimeout(debounceTimer);
-});
-
-watch([() => rawInfo.value.raw, isCompact, isRaw, keysOnly, filterNulls], () => {
-  void executeJq();
-});
-
-const copyToClipboard = (text: string) => {
-  navigator.clipboard.writeText(text);
-};
-
-// Avoid v-model directives entirely (they seem to not bind in Caido view modes on some setups).
-const onQueryInput = (event: Event) => {
-  const target = event.target as HTMLInputElement | null;
-  if (!target) return;
-  query.value = target.value;
-  executeJqDebounced();
-};
-
-const onCompactChange = (event: Event) => {
-  const target = event.target as HTMLInputElement | null;
-  if (!target) return;
-  isCompact.value = target.checked;
-};
-
-const onRawChange = (event: Event) => {
-  const target = event.target as HTMLInputElement | null;
-  if (!target) return;
-  isRaw.value = target.checked;
-};
-
-const onKeysOnlyChange = (event: Event) => {
-  const target = event.target as HTMLInputElement | null;
-  if (!target) return;
-  keysOnly.value = target.checked;
-};
-
-const onFilterNullsChange = (event: Event) => {
-  const target = event.target as HTMLInputElement | null;
-  if (!target) return;
-  filterNulls.value = target.checked;
-};
-
-const onDebugChange = (event: Event) => {
-  const target = event.target as HTMLInputElement | null;
-  if (!target) return;
-  showDebug.value = target.checked;
-};
-
-const copyDebug = async () => {
-  const text = JSON.stringify(debugInfo.value, null, 2);
-
-  try {
-    await navigator.clipboard.writeText(text);
-    return;
-  } catch {
-    // Fallback for environments where clipboard API is blocked.
-    try {
-      const textarea = document.createElement("textarea");
-      textarea.value = text;
-      textarea.style.position = "fixed";
-      textarea.style.left = "-9999px";
-      textarea.style.top = "0";
-      document.body.appendChild(textarea);
-      textarea.focus();
-      textarea.select();
-      document.execCommand("copy");
-      document.body.removeChild(textarea);
-    } catch (e) {
-      console.warn("JQ: clipboard fallback failed", e);
-    }
-  }
-};
 </script>
 
 <template>
   <div class="jq-view-container flex flex-col p-4 gap-4 overflow-hidden">
     <div class="flex items-center gap-2">
-      <JqQueryInput 
-        v-model="query"
-        :rootJson="parsedJson"
-        @submit="executeJq"
-        placeholder="Enter jq query (e.g. .foo[0])"
-      />
-      <button 
-        @click="executeJq"
-        :disabled="isLoading"
-        class="px-4 py-1 bg-white/5 hover:bg-white/10 rounded text-sm transition-colors"
-      >
-        Filter
-      </button>
-      <button 
-        @click="copyToClipboard(query)"
-        class="px-3 py-1 bg-white/5 hover:bg-white/10 rounded text-xs transition-colors"
-      >
-        Copy Query
-      </button>
-      <label class="flex items-center gap-2 text-xs cursor-pointer select-none">
-        <input type="checkbox" :checked="isCompact" @change="onCompactChange" class="rounded bg-transparent border-white/10" />
-        Compact
-      </label>
-      <label class="flex items-center gap-2 text-xs cursor-pointer select-none">
-        <input type="checkbox" :checked="isRaw" @change="onRawChange" class="rounded bg-transparent border-white/10" />
-        Raw
-      </label>
-      <label class="flex items-center gap-2 text-xs cursor-pointer select-none">
-        <input type="checkbox" :checked="keysOnly" @change="onKeysOnlyChange" class="rounded bg-transparent border-white/10" />
-        Keys
-      </label>
-      <label class="flex items-center gap-2 text-xs cursor-pointer select-none">
-        <input type="checkbox" :checked="filterNulls" @change="onFilterNullsChange" class="rounded bg-transparent border-white/10" />
-        No Nulls
-      </label>
-      <label class="flex items-center gap-2 text-xs cursor-pointer select-none">
-        <input type="checkbox" :checked="showDebug" @change="onDebugChange" class="rounded bg-transparent border-white/10" />
-        Debug
+      <JqQueryInput v-model="query" :rootJson="parsedJson" @submit="executeJq" placeholder="Enter jq query (e.g. .foo[0])" />
+      <button @click="executeJq" :disabled="isLoading" class="px-4 py-1 bg-white/5 hover:bg-white/10 rounded text-sm transition-colors">Filter</button>
+      <button @click="copyToClipboard(query)" class="px-3 py-1 bg-white/5 hover:bg-white/10 rounded text-xs transition-colors">Copy Query</button>
+      <label v-for="t in toggles" :key="t.label" class="flex items-center gap-2 text-xs cursor-pointer select-none">
+        <input type="checkbox" :checked="t.ref.value" @change="t.ref.value = ($event.target as HTMLInputElement).checked" class="rounded bg-transparent border-white/10" />
+        {{ t.label }}
       </label>
     </div>
 
     <div class="flex-1 flex flex-col min-h-0 gap-2">
-      <div
-        v-if="showDebug"
-        class="p-3 bg-white/5 border border-white/10 rounded text-xs font-mono whitespace-pre-wrap overflow-auto max-h-40 relative"
-      >
-        <button
-          @click="copyDebug"
-          class="absolute top-2 right-2 px-2 py-1 bg-white/5 hover:bg-white/10 rounded text-[10px] uppercase tracking-wider opacity-60 hover:opacity-100 transition-all font-sans"
-        >
-          Copy Debug
-        </button>
-        {{ JSON.stringify(debugInfo, null, 2) }}
-      </div>
-      <div v-if="stderr" class="p-3 bg-red-900/20 border border-red-500/30 rounded text-red-200 text-xs font-mono whitespace-pre-wrap overflow-auto max-h-32">
-        {{ stderr }}
-      </div>
-      
-      <div class="flex-1 relative min-h-0 bg-black/20 border border-white/5 rounded overflow-hidden flex flex-col">
-        <div class="absolute top-2 right-2 flex gap-2 z-10">
-          <button
-            @click="copyToClipboard(stdout)"
-            v-if="stdout"
-            class="px-2 py-1 bg-white/5 hover:bg-white/10 rounded text-[10px] uppercase tracking-wider opacity-60 hover:opacity-100 transition-all"
-          >
-            Copy Output
-          </button>
-          <button
-            @click="showFullOutput = !showFullOutput"
-            v-if="isOutputTruncated || showFullOutput"
-            class="px-2 py-1 bg-white/5 hover:bg-white/10 rounded text-[10px] uppercase tracking-wider opacity-60 hover:opacity-100 transition-all"
-          >
-            {{ showFullOutput ? 'Show Truncated' : 'Show Full Output' }}
-          </button>
-        </div>
-        <pre :class="['flex-1 p-4 m-0 overflow-auto text-sm font-mono whitespace-pre-wrap', shouldHighlight && !isOutputTruncated ? 'language-json' : '']"><code v-html="displayOutput || (isLoading ? 'Processing...' : 'No output')"></code></pre>
-      </div>
+      <JqDebugPanel :debugInfo="debugInfo" :visible="showDebug" />
+      <div v-if="stderr" class="p-3 bg-red-900/20 border border-red-500/30 rounded text-red-200 text-xs font-mono whitespace-pre-wrap overflow-auto max-h-32">{{ stderr }}</div>
+      <JqOutputPanel
+        :stdout="stdout" :displayOutput="displayOutput" :shouldHighlight="shouldHighlight"
+        :isOutputTruncated="isOutputTruncated" :showFullOutput="showFullOutput" :isLoading="isLoading"
+        @copy="copyToClipboard(stdout)" @toggleFullOutput="showFullOutput = !showFullOutput"
+      />
     </div>
   </div>
 </template>
@@ -513,29 +87,4 @@ const copyDebug = async () => {
   background-color: transparent;
   color: var(--color-foreground, #fff);
 }
-
-pre {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
-  user-select: text;
-  cursor: text;
-}
-
-pre code {
-  user-select: text;
-}
-
-pre::selection,
-pre *::selection {
-  background-color: rgba(100, 150, 255, 0.4);
-}
-
-/* Prism Dark Theme overrides for Caido */
-:deep(.token.property) { color: #9cdcfe; }
-:deep(.token.string) { color: #ce9178; }
-:deep(.token.number) { color: #b5cea8; }
-:deep(.token.boolean) { color: #569cd6; }
-:deep(.token.null) { color: #569cd6; }
-:deep(.token.operator) { color: #d4d4d4; }
-:deep(.token.punctuation) { color: #d4d4d4; }
 </style>

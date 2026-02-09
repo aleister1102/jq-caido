@@ -1,4 +1,6 @@
-# Scripts (`scripts/**`)
+# Scripts
+
+Scope: `scripts/**`. Run from **repo root**. See [root AGENTS.md](../AGENTS.md) for build/watch.
 
 ## Scripts
 
@@ -9,9 +11,11 @@
 
 ## Commands
 
-- Create release zip: `bun run package` or `node scripts/package.mjs` (requires `dist/plugin_package/` and `zip`).
-- Optional: `bun scripts/test_jq_perf.ts`.
+| Goal | Command | Notes |
+|---|---|---|
+| Create release zip | `node scripts/package.mjs` | Requires `dist/plugin_package/` from build and `zip` installed |
+| Test jq performance | `bun scripts/test_jq_perf.ts` | Optional/local performance benchmark |
 
 ## Boundaries
 
-- Never write private keys to disk outside CI; signing key is injected in GitHub Actions only (`.github/workflows/release.yml`).
+- Never write private keys to disk outside CI; the signing key is injected in GitHub Actions only (`.github/workflows/release.yml`).
