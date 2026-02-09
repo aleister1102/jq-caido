@@ -83,6 +83,7 @@ const debugInfo = computed(() => {
 });
 
 onMounted(() => {
+  query.value = ".";
   loadSettings();
 });
 

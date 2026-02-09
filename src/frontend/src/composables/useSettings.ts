@@ -15,7 +15,6 @@ export function useSettings() {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return;
       const settings = JSON.parse(raw);
-      if (settings?.query) query.value = String(settings.query);
       if (settings?.isCompact !== undefined) isCompact.value = !!settings.isCompact;
       if (settings?.isRaw !== undefined) isRaw.value = !!settings.isRaw;
       if (settings?.keysOnly !== undefined) keysOnly.value = !!settings.keysOnly;
@@ -30,7 +29,6 @@ export function useSettings() {
       localStorage.setItem(
         STORAGE_KEY,
         JSON.stringify({
-          query: query.value,
           isCompact: isCompact.value,
           isRaw: isRaw.value,
           keysOnly: keysOnly.value,
