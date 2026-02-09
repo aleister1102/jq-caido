@@ -77,6 +77,9 @@ export function resolvePath(json: any, segments: string[]): any {
 export function getSuggestions(json: any, query: string): Suggestion[] {
     if (json === null || json === undefined) return [];
 
+    // Normalize [] to [0] so we can resolve through array iterators to their element properties
+    query = query.replace(/\[\]/g, "[0]");
+
     // Determine the base path and the prefix
     // e.g. ".foo.ba" -> base: ["foo"], prefix: "ba"
     // e.g. ".foo." -> base: ["foo"], prefix: ""
