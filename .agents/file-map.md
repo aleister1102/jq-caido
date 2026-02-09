@@ -1,7 +1,5 @@
 # File Map and References
 
-## Overview
-
 Where key config, source, and outputs live. Use golden samples and utilities instead of re-implementing.
 
 ## File Map
@@ -13,7 +11,6 @@ Where key config, source, and outputs live. Use golden samples and utilities ins
 - `scripts/` -> packaging + local perf script(s)
 - `dist/` -> build/package output (ignored)
 - `.github/workflows/release.yml` -> tag-based release pipeline
-- `.kiro/steering/` -> higher-level project guidelines (optional context)
 
 ## Golden Samples (copy patterns from here)
 
