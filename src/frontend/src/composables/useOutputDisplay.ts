@@ -31,8 +31,13 @@ export function useOutputDisplay(stdout: Ref<string>) {
     // For very large outputs (> 500KB), truncate unless explicitly showing full
     const maxDisplayLength = 512000; // 500KB
     if (stdout.value.length > maxDisplayLength && !showFullOutput.value) {
-      const truncated = stdout.value.slice(0, maxDisplayLength);
-      return truncated + `\n\n[Output truncated - ${((stdout.value.length - maxDisplayLength) / 1024).toFixed(1)} KB more. Click "Show Full Output" to display everything.]`;
+      const truncated = escapeHtml(stdout.value.slice(0, maxDisplayLength));
+      const message = escapeHtml(
+        `\n\n[Output truncated - ${((stdout.value.length - maxDisplayLength) / 1024).toFixed(
+          1,
+        )} KB more. Click "Show Full Output" to display everything.]`,
+      );
+      return truncated + message;
     }
     return highlightedOutput.value;
   });
