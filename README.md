@@ -55,8 +55,8 @@ bun run package
 
 1. Bump `version` in both `package.json` and `manifest.json`.
 2. Commit and push to `main`.
-3. Tag and push: `git tag v1.2.x && git push origin v1.2.x`.
-4. GitHub Actions builds, signs, and publishes the release.
+3. Go to **Actions** > **Release** > **Run workflow** (on `main` branch).
+4. GitHub Actions builds, signs, and publishes an immutable release tagged with the version from `manifest.json`.
 
 ## Credits
 
