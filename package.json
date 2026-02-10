@@ -6,8 +6,9 @@
   "type": "module",
   "scripts": {
     "build": "caido-dev build",
-    "package": "bun scripts/package.mjs",
-    "watch": "caido-dev watch"
+    "package": "JQ_DEBUG=0 caido-dev build && bun scripts/package.mjs",
+    "test": "vitest run",
+    "watch": "JQ_DEBUG=1 caido-dev watch"
   },
   "dependencies": {
     "@caido/sdk-frontend": "^0.55.3",
@@ -19,6 +20,9 @@
     "@caido-community/dev": "^0.1.6",
     "@types/prismjs": "^1.26.5",
     "@vitejs/plugin-vue": "^5.2.1",
-    "typescript": "^5.7.3"
+    "@vue/test-utils": "^2.4.6",
+    "jsdom": "^25.0.1",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.8"
   }
 }

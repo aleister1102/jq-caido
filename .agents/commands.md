@@ -1,9 +1,14 @@
 # Commands
 
-All commands run from **repo root**. Use `bun` or `npm`; works on macOS and Linux. If your runtime fails (e.g. proto shims), use Node from your PATH or set it explicitly.
+## Overview
+
+All commands are run from the **repo root**.
+
+## Commands
 
 | Goal | Command | Notes | ~Time |
 |---|---|---|---:|
-| Build plugin package | `bun run build` or `npm run build` | Produces `dist/plugin_package.zip` | ~2s |
-| Watch/dev | `bun run watch` or `npm run watch` | Starts Vite dev server | — |
-| Re-zip w/ docs | `bun run package` or `node scripts/package.mjs` | Adds `README.md`/`LICENSE` into zip | ~1s |
+| Install | `bun install` | Install dependencies | ~5s |
+| Build | `bun run build` | Produces `dist/plugin_package.zip` | ~2s |
+| Watch/dev | `bun run watch` | Rebuilds on file changes; sets `JQ_DEBUG=1` | -- |
+| Package release zip | `bun run package` | Clean build (`JQ_DEBUG=0`) + bundles `README.md`/`LICENSE` | ~3s |

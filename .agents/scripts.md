@@ -1,6 +1,6 @@
 # Scripts
 
-Scope: `scripts/**`. Run from **repo root**. See [root AGENTS.md](../AGENTS.md) for build/watch.
+Scope: `scripts/**`. Run commands from **repo root**.
 
 ## Scripts
 
@@ -13,8 +13,9 @@ Scope: `scripts/**`. Run from **repo root**. See [root AGENTS.md](../AGENTS.md) 
 
 | Goal | Command | Notes |
 |---|---|---|
-| Create release zip | `node scripts/package.mjs` | Requires `dist/plugin_package/` from build and `zip` installed |
-| Test jq performance | `bun scripts/test_jq_perf.ts` | Optional/local performance benchmark |
+| Create release zip | `bun run package` | Requires `dist/plugin_package/` from build and `zip` installed |
+
+Optional/local: `bun scripts/test_jq_perf.ts`.
 
 ## Boundaries
 

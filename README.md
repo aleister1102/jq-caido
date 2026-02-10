@@ -1,71 +1,68 @@
 # Caido JQ Plugin
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+A [Caido](https://caido.io/) frontend plugin that adds a **JQ** view mode to HTTP History, Replay, Search, and Sitemap tabs. Run real `jq` queries against JSON request and response bodies with syntax highlighting and autocomplete.
 
-A port of the Burp Suite extension [burp-jq](https://github.com/synacktiv/burp-jq) to Caido. Adds a **JQ** view mode to HTTP History, Replay, Search, and Sitemap so you can run real `jq` queries against JSON request/response bodies with syntax highlighting.
+Inspired by [burp-jq](https://github.com/synacktiv/burp-jq) (Synacktiv).
 
 ## Features
 
-- **Real `jq` compatibility** — Full feature set via `jq-wasm`.
-- **Auto-completion** — Query suggestions from your JSON structure.
-- **Built-in integration** — JQ tab in Caido's message viewer.
-- **Syntax highlighting** — JSON highlighting with Prism.js.
-- **Quick filters** — Compact, Raw, Keys-only, Null removal.
-- **Large payloads** — Optimized for big JSON (20MB+) with raw-string path and debouncing.
-- **GraphQL fallback** — Fetches full raw messages via Caido API when needed.
+- **Real `jq` queries** powered by [jq-wasm](https://github.com/mwilliamson/jq-wasm).
+- **Autocomplete** based on your JSON structure (supports nested objects, arrays, and `[]` iterators).
+- **Syntax highlighting** via [Prism.js](https://prismjs.com/).
+- **Quick filters**: Compact (`-c`), Raw (`-r`), Keys-only, and Null removal toggles.
+- **Large payload support**: optimized for 20 MB+ JSON with smart truncation and debouncing.
+- **GraphQL fallback**: fetches full raw messages via Caido's API when only headers are provided.
 
-### Performance
-
-The plugin passes raw strings to the WebAssembly engine to avoid JS object traversal. On a 17.77 MB JSON file:
-
-| Scenario | Time |
-| --- | --- |
-| `jq.raw(Object)` | ~648,891 ms |
-| `jq.raw(String)` | **~8.27 ms** |
-| **Improvement** | **~78,463×** |
+> [!TIP]
+> **Performance**: The plugin passes raw strings directly to jq-wasm instead of parsed JS objects, avoiding expensive JS/WASM boundary traversal.
+>
+> **Benchmark (17.77 MB JSON):**
+> | Path | Time |
+> |---|---|
+> | `jq.raw(Object)` | ~648,891 ms |
+> | `jq.raw(String)` | **~8.27 ms** |
 
 ## Installation
 
-1. Download `plugin_package.zip` from [Releases](https://github.com/aleister1102/jq-caido/releases) (or build from source).
-2. In Caido: **Plugins** → **Upload Plugin** → select the zip.
+1. Download `plugin_package.zip` from the [releases page](https://github.com/aleister1102/jq-caido/releases).
+2. In Caido, go to **Plugins** and click **Upload Plugin**.
+3. Select the zip file.
 
 ## Usage
 
-1. Open an HTTP request or response with JSON.
-2. Open the **JQ** tab in the message viewer.
-3. Enter a `jq` expression (e.g. `.items[0].id`) and press **Filter** or Enter.
-4. Use **Copy Output** or **Copy Query** as needed. Output updates when you change filter options.
+1. Select an HTTP request or response containing JSON.
+2. Click the **JQ** tab in the message viewer.
+3. Type a `jq` query (e.g., `.data[].id`) and press **Enter** or click **Filter**.
+4. Use **Copy Output** or **Copy Query** to grab results.
 
 ## Development
 
-**Requirements:** Bun or Node.js (LTS). Commands work on macOS and Linux.
-
 ```bash
-bun install   # or: npm install
-bun run build      # or: npm run build  → dist/plugin_package.zip
-bun run package    # or: node scripts/package.mjs  → re-zip with README + LICENSE
-bun run watch      # or: npm run watch  → dev server
+# Install dependencies
+bun install
+
+# Watch mode (live reload in Caido)
+bun run watch
+
+# Production build
+bun run build
+
+# Package release zip (clean build + README/LICENSE bundled)
+bun run package
 ```
 
 ## Releasing
 
-1. **Bump version** in `package.json`, `manifest.json`, and `caido.config.ts` (e.g. `1.2.0`).
-2. Commit and push, then create and push a tag:
-   ```bash
-   git tag v1.2.0
-   git push origin v1.2.0
-   ```
-3. GitHub Actions builds, signs (using `PRIVATE_KEY`), and attaches `plugin_package.zip` to the release.
+1. Bump `version` in both `package.json` and `manifest.json`.
+2. Commit and push to `main`.
+3. Tag and push: `git tag v1.2.x && git push origin v1.2.x`.
+4. GitHub Actions builds, signs, and publishes the release.
 
 ## Credits
 
-- [burp-jq](https://github.com/synacktiv/burp-jq) (Synacktiv) — inspiration.
-- [jq-wasm](https://github.com/mwilliamson/jq-wasm) — jq runtime.
-- [Prism.js](https://prismjs.com/) — syntax highlighting.
-
-## License
-
-MIT. See [LICENSE](LICENSE) for details.
+- [burp-jq](https://github.com/synacktiv/burp-jq) by Synacktiv
+- [jq-wasm](https://github.com/mwilliamson/jq-wasm)
+- [Prism.js](https://prismjs.com/)
 
 ## Author
 
