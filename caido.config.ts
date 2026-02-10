@@ -5,9 +5,11 @@ export default defineConfig({
   id: "jq",
   name: "JQ",
   description: "JQ view mode for JSON bodies",
-  version: "1.2.0",
+  version: "1.2.1",
   author: {
     name: "insomnia1102",
+    email: "marucube35@gmail.com",
+    url: "https://github.com/aleister1102"
   },
   plugins: [
     {

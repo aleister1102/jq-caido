@@ -29,7 +29,3 @@ Rules for data handling, UX, code style, and what not to change without asking.
 - **Commits:** Conventional Commits (`feat:`, `fix:`, `perf:`, `refactor:`, `docs:`, `chore:`).
 - **Releases:** See [README.md — Releasing](../README.md#releasing).
 - **PRs:** Prefer small PRs; for JQ pipeline changes include a performance impact note; for output-formatting changes include before/after samples or screenshots.
-
-## Codebase State
-
-- Version fields are not all aligned: `package.json`/`manifest.json` are `1.2.0` but `caido.config.ts` is `1.0.4` (treat as a release checklist item).
