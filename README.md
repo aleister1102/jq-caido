@@ -61,7 +61,7 @@ bun run package
 ## Credits
 
 - [burp-jq](https://github.com/synacktiv/burp-jq) by Synacktiv
-- [jq-wasm](https://github.com/mwilliamson/jq-wasm)
+- [jq-wasm](https://github.com/pboutes/jq-wasm)
 - [Prism.js](https://prismjs.com/)
 
 ## Author
