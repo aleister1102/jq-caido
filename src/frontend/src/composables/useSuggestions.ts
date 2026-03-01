@@ -10,7 +10,6 @@ export function useSuggestions(
   const selectedIndex = ref(0);
   const suggestions = ref<Suggestion[]>([]);
 
-  const isTooLargeForSuggestions = (json: any): boolean => {
   const isTooLargeForSuggestions = (json: unknown): boolean => {
     if (json == null) return false;
     // Rough estimation if it's already an object
@@ -19,6 +18,7 @@ export function useSuggestions(
     // Let's use a heuristic: if we have more than 10,000 keys at root, it's probably too slow.
     if (typeof json === "object" && !Array.isArray(json)) {
       return Object.keys(json as Record<string, unknown>).length > 10000;
+    }
     return false;
   };
 
