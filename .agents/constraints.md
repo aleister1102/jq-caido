@@ -11,11 +11,11 @@ Rules for data handling, UX, code style, and what not to change without asking.
 
 ## Heuristics
 
-| When | Do |
-|---|---|
-| Large payloads (10MB+) | Avoid `JSON.parse`; prefer raw string through jq-wasm path |
-| Large output | Truncate by default; avoid Prism highlighting when big |
-| Caido prop shape varies | Use runtime guards; do not assume a single prop name |
+| When                    | Do                                                         |
+| ----------------------- | ---------------------------------------------------------- |
+| Large payloads (10MB+)  | Avoid `JSON.parse`; prefer raw string through jq-wasm path |
+| Large output            | Truncate by default; avoid Prism highlighting when big     |
+| Caido prop shape varies | Use runtime guards; do not assume a single prop name       |
 
 ## Boundaries
 
@@ -25,7 +25,7 @@ Rules for data handling, UX, code style, and what not to change without asking.
 
 ## Git Workflow
 
-- **Branching:** Default branch `main`. Use `feature/`, `fix/`, `refactor/` prefixes.
+- **Branching:** Always work on a feature/fix branch. Do **not** commit directly to `main`/`master`; create or checkout a dedicated branch for every implementation task and open a pull request when ready. Use `feature/`, `fix/`, `refactor/` prefixes.
 - **Commits:** Conventional Commits (`feat:`, `fix:`, `perf:`, `refactor:`, `docs:`, `chore:`).
 - **Releases:** See [README.md — Releasing](../README.md#releasing).
 - **PRs:** Prefer small PRs; for JQ pipeline changes include a performance impact note; for output-formatting changes include before/after samples or screenshots.

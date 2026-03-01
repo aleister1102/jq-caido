@@ -17,13 +17,22 @@ export function useOutputDisplay(stdout: Ref<string>) {
   const displayOutput = computed(() => {
     const val = stdout.value;
     if (!val) return "";
+    const start = performance.now();
+    let result = "";
     if (val.length > MAX_DISPLAY && !showFullOutput.value) {
-      return escapeHtml(val.slice(0, MAX_DISPLAY))
+      result = escapeHtml(val.slice(0, MAX_DISPLAY))
         + escapeHtml(`\n\n[Output truncated - ${((val.length - MAX_DISPLAY) / 1024).toFixed(1)} KB more. Click "Show Full Output" to display everything.]`);
+    } else if (val.length > MAX_HIGHLIGHT) {
+      result = escapeHtml(val);
+    } else {
+      try { result = Prism.highlight(val, Prism.languages.json, "json"); }
+      catch { result = escapeHtml(val); }
     }
-    if (val.length > MAX_HIGHLIGHT) return escapeHtml(val);
-    try { return Prism.highlight(val, Prism.languages.json, "json"); }
-    catch { return escapeHtml(val); }
+    const end = performance.now();
+    if (val.length > 500_000) {
+      console.debug(`[JQ] displayOutput computed in ${(end - start).toFixed(2)}ms for ${val.length} chars`);
+    }
+    return result;
   });
 
   const isOutputTruncated = computed(() => !!stdout.value && stdout.value.length > MAX_DISPLAY && !showFullOutput.value);
