@@ -1,8 +1,12 @@
-export async function copyToClipboard(text: string): Promise<void> {
+/**
+ * Copy text to clipboard and return success status.
+ * Falls back to execCommand if Clipboard API is unavailable.
+ */
+export async function copyToClipboard(text: string): Promise<boolean> {
   if (navigator && navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
     try {
       await navigator.clipboard.writeText(text);
-      return;
+      return true;
     } catch {
     }
   }
@@ -23,8 +27,10 @@ export async function copyToClipboard(text: string): Promise<void> {
 
     document.body.appendChild(textarea);
     textarea.select();
-    document.execCommand("copy");
+    const success = document.execCommand("copy");
     document.body.removeChild(textarea);
+    return success;
   } catch {
+    return false;
   }
 }
