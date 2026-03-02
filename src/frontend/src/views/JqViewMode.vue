@@ -30,6 +30,7 @@ const {
   selectedIds,
   bodyText,
   parsedJson,
+  isOversized,
   isLargePayload,
   autocompleteWarning,
   ensureParsedJson,
@@ -49,6 +50,7 @@ const {
   isRaw,
   keysOnly,
   filterNulls,
+  isOversized,
   isLargePayload,
   clearParsedJson,
 );

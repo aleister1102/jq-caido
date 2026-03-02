@@ -1,6 +1,7 @@
 import { computed, ref, type ComputedRef } from "vue";
 import { extractJsonBodyString } from "../lib/extractJsonBody";
 
+export const OVERSIZED_PAYLOAD_BYTES = 300_000;
 const LARGE_PAYLOAD_THRESHOLD_BYTES = 10_000_000;
 
 export type RawCarrier = { raw?: string; id?: string } | undefined;
@@ -55,6 +56,7 @@ export function useRawPayload(props: ComputedRef<PropsShape>) {
   });
 
   const bodyText = computed(() => extractJsonBodyString(rawInfo.value.raw) ?? "");
+  const isOversized = computed(() => bodyText.value.length > OVERSIZED_PAYLOAD_BYTES);
   const isLargePayload = computed(() => bodyText.value.length > LARGE_PAYLOAD_THRESHOLD_BYTES);
 
   const autocompleteWarning = computed(() => {
@@ -70,7 +72,7 @@ export function useRawPayload(props: ComputedRef<PropsShape>) {
 
   const ensureParsedJson = () => {
     const json = bodyText.value;
-    if (!json || isLargePayload.value) {
+    if (!json || isOversized.value || isLargePayload.value) {
       parsedJson.value = null;
       parsedJsonSource.value = "";
       return;
@@ -100,6 +102,7 @@ export function useRawPayload(props: ComputedRef<PropsShape>) {
     bodyText,
     bodyParse,
     parsedJson,
+    isOversized,
     isLargePayload,
     autocompleteWarning,
     ensureParsedJson,
