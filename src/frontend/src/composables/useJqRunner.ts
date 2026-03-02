@@ -62,7 +62,7 @@ export function useJqRunner(
         (result.timedOut ? "Error: jq-wasm timed out (likely wasm failed to load in Caido)" : "") ||
         (result.exitCode !== 0 ? `Error: jq exited with code ${result.exitCode}` : "");
 
-      updateParsedJson(jsonBody!!);
+      updateParsedJson(typeof jsonBody === "string" ? jsonBody : "");
     } finally {
       if (thisGen === generation) {
         isLoading.value = false;
