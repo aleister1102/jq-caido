@@ -6,12 +6,11 @@ Inspired by [burp-jq](https://github.com/synacktiv/burp-jq) (Synacktiv).
 
 ## Features
 
-- **Real `jq` queries** powered by [jq-wasm](https://github.com/mwilliamson/jq-wasm).
+- **Real `jq` queries** powered by [jq-wasm](https://github.com/owenthereal/jq-wasm).
 - **Autocomplete** based on your JSON structure (supports nested objects, arrays, and `[]` iterators).
 - **Syntax highlighting** via [Prism.js](https://prismjs.com/).
 - **Quick filters**: Compact (`-c`), Raw (`-r`), Keys-only, and Null removal toggles.
 - **Large payload support**: optimized for 20 MB+ JSON with smart truncation and debouncing.
-- **GraphQL fallback**: fetches full raw messages via Caido's API when only headers are provided.
 
 > [!TIP]
 > **Performance**: The plugin passes raw strings directly to jq-wasm instead of parsed JS objects, avoiding expensive JS/WASM boundary traversal.
@@ -32,21 +31,16 @@ Inspired by [burp-jq](https://github.com/synacktiv/burp-jq) (Synacktiv).
 
 1. Select an HTTP request or response containing JSON.
 2. Click the **JQ** tab in the message viewer.
-3. Type a `jq` query (e.g., `.data[].id`) and press **Enter** or click **Filter**.
+3. Type a `jq` query (e.g., `.data[].id`) and press **Enter** (or just type to run with debounce).
 4. Use **Copy Output** or **Copy Query** to grab results.
 
-JSON bodies can be large, and `jq` results can be even larger. This plugin implements several optimizations:
+## Source Documentation
 
-- **Output Truncation**: By default, only the first 500KB of output is rendered. Users can toggle "Show Full Output" to see the rest.
-- **Syntax Highlighting Limit**: Prism.js highlighting is disabled for outputs > 100KB to prevent UI freezing.
-- **Autocomplete Gating**:
-  - `JSON.parse` for suggestions is skipped if the payload body exceeds 5MB.
-  - Suggestion key enumeration is disabled if the root object has more than 10,000 keys.
-- **Efficient Escaping**: HTML escaping is used for large outputs to avoid the overhead of complex DOM structures or highlighting.
+Architecture notes were moved into source-local README files:
 
-### Performance Notes
-
-Rendering 1MB+ of text into a single DOM element (`v-html`) can still cause a brief "Rendering" delay in the browser (usually ~100-300ms depending on the machine). This is a browser DOM insertion bottleneck rather than a JavaScript processing bottleneck. For extremely large datasets, it is recommended to use the "Show Truncated" view for general exploration.
+- [frontend architecture and flow](src/frontend/src/README.md)
+- [`useRawPayload`, `parsedJson`, autocomplete caching](src/frontend/src/composables/README.md)
+- [`JqQueryInput` and `modelValue` convention](src/frontend/src/components/README.md)
 
 ## Development
 
@@ -74,7 +68,7 @@ bun run package
 ## Credits
 
 - [burp-jq](https://github.com/synacktiv/burp-jq) by Synacktiv
-- [jq-wasm](https://github.com/pboutes/jq-wasm)
+- [jq-wasm](https://github.com/owenthereal/jq-wasm)
 - [Prism.js](https://prismjs.com/)
 
 ## Author

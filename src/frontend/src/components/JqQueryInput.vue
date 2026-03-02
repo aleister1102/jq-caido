@@ -39,11 +39,7 @@ useClickOutside(containerRef, hideSuggestionsDropdown);
 const onInput = (e: Event) => {
   const target = e.target as HTMLInputElement;
   emit("update:modelValue", target.value);
-  const inputEvent = e as InputEvent;
-  if (inputEvent.inputType?.startsWith("delete")) {
-    hideSuggestionsDropdown();
-    return;
-  }
+  // Show suggestions on any input change (including deletions)
   showSuggestionsDropdown();
 };
 

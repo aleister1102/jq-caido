@@ -67,7 +67,7 @@ describe("jq-suggestion", () => {
         data: [{ name: "Alice", age: 30 }],
       };
       const suggestions = getSuggestions(json, ".data[].na");
-      expect(suggestions).toEqual([{ text: "name", type: "property" }]);
+      expect(suggestions).toEqual([{ text: "name", type: "property", dataType: "string" }]);
     });
   });
 
@@ -95,7 +95,7 @@ describe("jq-suggestion", () => {
         },
       };
       const suggestions = getSuggestions(json, ".data.fir");
-      expect(suggestions).toEqual([{ text: "firstName", type: "property" }]);
+      expect(suggestions).toEqual([{ text: "firstName", type: "property", dataType: "string" }]);
     });
   });
 

@@ -54,7 +54,9 @@ watch(
       ]"
     >
       <span>{{ suggestion.text }}</span>
-      <span class="text-[10px] uppercase opacity-40 px-1 border border-white/10 rounded">{{ suggestion.type }}</span>
+      <span class="text-[10px] uppercase opacity-40 px-1 border border-white/10 rounded">
+        {{ suggestion.type === 'index' ? 'index' : suggestion.dataType }}
+      </span>
     </button>
   </div>
 </template>
