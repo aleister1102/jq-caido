@@ -8,7 +8,7 @@
 
 - `rawCandidates`: collects possible raw sources from `raw`, `data`, `request`, `response`, `value`, and `item`
 - `rawInfo`: picks the first non-empty source and returns `{ raw, source }`
-- `selectedIds`: resolves request/response IDs used by fallback fetching in runner logic
+- `selectedIds`: resolves normalized request/response IDs for the current payload
 - `bodyText`: extracts JSON body text from raw message content
 - `bodyParse`: lightweight parse status/preview metadata for diagnostics
 - `parsedJson`: parsed payload object used by autocomplete

@@ -35,7 +35,16 @@ export function useJqRunner(
       return;
     }
 
-    let jsonBody = extractJsonBodyString(raw);
+    const jsonBody = extractJsonBodyString(raw);
+    if (!jsonBody) {
+      stdout.value = "";
+      updateParsedJson("");
+      stderr.value = "Error: No JSON body found in the selected message.";
+      if (thisGen === generation) {
+        isLoading.value = false;
+      }
+      return;
+    }
 
     isLoading.value = true;
 
