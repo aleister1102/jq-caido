@@ -23,7 +23,6 @@ export default defineConfig({
         // This keeps jq-wasm on the browser/XHR/fetch path instead of trying to use `fs`.
         define: {
           "process.type": "\"renderer\"",
-          "__JQ_DEBUG__": JSON.stringify(process.env.JQ_DEBUG === "1"),
         },
         build: {
           rollupOptions: {

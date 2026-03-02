@@ -6,7 +6,6 @@ import { useJqRunner } from "../composables/useJqRunner";
 import { useOutputDisplay } from "../composables/useOutputDisplay";
 import { copyToClipboard } from "../lib/clipboard";
 import JqQueryInput from "../components/JqQueryInput.vue";
-import JqDebugPanel from "../components/JqDebugPanel.vue";
 import JqOutputPanel from "../components/JqOutputPanel.vue";
 
 const props = defineProps<PropsShape>();
@@ -16,7 +15,6 @@ const {
   isRaw,
   keysOnly,
   filterNulls,
-  showDebug,
   loadSettings,
   saveSettings,
 } = useSettings();
@@ -28,11 +26,8 @@ const query = ref(".");
 loadSettings();
 
 const {
-  rawCandidates,
   rawInfo,
   selectedIds,
-  bodyText,
-  bodyParse,
   parsedJson,
   updateParsedJson,
 } = useRawPayload(computed(() => props));
@@ -41,8 +36,6 @@ const {
   stdout,
   stderr,
   isLoading,
-  lastRun,
-  graphqlFetch,
   executeJq: executeJqInternal,
 } = useJqRunner(
   rawInfo,
@@ -57,33 +50,9 @@ const {
 
 const outputDisplay = useOutputDisplay(stdout);
 
-declare const __JQ_DEBUG__: boolean;
-const isDev = typeof __JQ_DEBUG__ !== "undefined" && __JQ_DEBUG__;
-
 const executeJq = async () => {
   await executeJqInternal();
 };
-
-const debugInfo = computed(() => {
-  const keys = Object.keys(props as any);
-  const candidateLengths = Object.fromEntries(
-    Object.entries(rawCandidates.value).map(([k, v]) => [k, typeof v === "string" ? v.length : 0]),
-  );
-
-  return {
-    rawSource: rawInfo.value.source || "(none)",
-    rawLength: rawInfo.value.raw ? rawInfo.value.raw.length : 0,
-    candidateLengths,
-    ids: selectedIds.value,
-    bodyLength: bodyText.value.length,
-    bodyParseOk: bodyParse.value.ok,
-    bodyType: bodyParse.value.type,
-    bodyPreview: bodyParse.value.valuePreview,
-    lastRun: lastRun.value,
-    graphqlFetch: graphqlFetch.value,
-    keys,
-  };
-});
 
 // Save settings only when the persisted flags change
 watch([isCompact, isRaw, keysOnly, filterNulls], () => {
@@ -104,13 +73,6 @@ onMounted(() => {
         @submit="executeJq"
         placeholder="Enter jq query (e.g. .foo[0])"
       />
-      <button
-        @click="executeJq"
-        :disabled="isLoading"
-        class="px-4 py-1 bg-white/5 hover:bg-white/10 rounded text-sm transition-colors"
-      >
-        Filter
-      </button>
       <button
         @click="copyToClipboard(query)"
         class="px-3 py-1 bg-white/5 hover:bg-white/10 rounded text-xs transition-colors"
@@ -136,14 +98,9 @@ onMounted(() => {
         <input type="checkbox" v-model="filterNulls" class="rounded bg-transparent border-white/10" />
         No Nulls
       </label>
-      <label v-if="isDev" class="flex items-center gap-2 text-xs cursor-pointer select-none">
-        <input type="checkbox" v-model="showDebug" class="rounded bg-transparent border-white/10" />
-        Debug
-      </label>
     </div>
 
     <div class="flex-1 flex flex-col min-h-0 gap-2">
-      <JqDebugPanel v-if="isDev && showDebug" :debugInfo="debugInfo" />
       <div v-if="stderr" class="p-3 bg-red-900/20 border border-red-500/30 rounded text-red-200 text-xs font-mono whitespace-pre-wrap overflow-auto max-h-32">
         {{ stderr }}
       </div>

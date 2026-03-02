@@ -7,7 +7,6 @@ export function useSettings() {
   const isRaw = ref(true);
   const keysOnly = ref(false);
   const filterNulls = ref(false);
-  const showDebug = ref(false);
 
   const loadSettings = () => {
     try {
@@ -44,7 +43,6 @@ export function useSettings() {
     isRaw,
     keysOnly,
     filterNulls,
-    showDebug,
     loadSettings,
     saveSettings,
   };
