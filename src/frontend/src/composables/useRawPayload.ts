@@ -37,8 +37,8 @@ export function useRawPayload(props: ComputedRef<PropsShape>) {
   }));
 
   const rawInfo = computed(() => {
-    for (const [source, raw] of Object.entries(rawCandidates.value)) {
-      if (typeof raw === "string" && raw.length > 0) return { raw, source };
+    for (const [key, val] of Object.entries(rawCandidates.value)) {
+      if (typeof val === "string" && val.length > 0) return { raw: val, source: key };
     }
     return { raw: "", source: "" };
   });

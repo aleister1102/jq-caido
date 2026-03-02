@@ -35,46 +35,15 @@ export function useJqRunner(
       return;
     }
 
-    let jsonBody = extractJsonBodyString(raw);
-
-    // If Caido only provided headers (no body), fall back to GraphQL request/response(id)->raw
-    // and retry parsing from the fully stored raw value.
+    const jsonBody = extractJsonBodyString(raw);
     if (!jsonBody) {
-      const caido = getCaido();
-      const { requestId, responseId } = selectedIds.value;
-      let graphqlTried = true;
-      let graphqlOk = false;
-      let graphqlError: string | null = null;
-
-      try {
-        if (caido && requestId) {
-          const res = await caido.graphql.request({ id: requestId });
-          const fullRaw = res?.request?.raw;
-          if (typeof fullRaw === "string" && fullRaw.length > 0) {
-            graphqlOk = true;
-            jsonBody = extractJsonBodyString(fullRaw);
-          }
-        } else if (caido && responseId) {
-          const res = await caido.graphql.response({ id: responseId });
-          const fullRaw = res?.response?.raw;
-          if (typeof fullRaw === "string" && fullRaw.length > 0) {
-            graphqlOk = true;
-            jsonBody = extractJsonBodyString(fullRaw);
-          }
-        }
-      } catch (e: any) {
-        graphqlError = e?.message ? String(e.message) : String(e);
+      stdout.value = "";
+      updateParsedJson("");
+      stderr.value = "Error: No JSON body found in the selected message.";
+      if (thisGen === generation) {
+        isLoading.value = false;
       }
-
-      if (!jsonBody) {
-        stdout.value = "";
-        stderr.value =
-          graphqlTried && !graphqlOk
-            ? `Error: Body is not valid JSON (and GraphQL fallback failed: ${graphqlError ?? "no raw returned"})`
-            : "Error: Body is not valid JSON";
-        if (thisGen === generation) isLoading.value = false;
-        return;
-      }
+      return;
     }
 
     isLoading.value = true;
@@ -92,9 +61,7 @@ export function useJqRunner(
     }
 
     try {
-      const started = performance.now?.() ?? Date.now();
       const result = await runJq(jsonBody, effectiveQuery, flags);
-      const ended = performance.now?.() ?? Date.now();
 
       if (thisGen !== generation) return; // stale, discard
 
@@ -104,7 +71,7 @@ export function useJqRunner(
         (result.timedOut ? "Error: jq-wasm timed out (likely wasm failed to load in Caido)" : "") ||
         (result.exitCode !== 0 ? `Error: jq exited with code ${result.exitCode}` : "");
 
-      updateParsedJson(jsonBody);
+      updateParsedJson(typeof jsonBody === "string" ? jsonBody : "");
     } finally {
       if (thisGen === generation) {
         isLoading.value = false;
