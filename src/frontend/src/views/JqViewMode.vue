@@ -57,6 +57,36 @@ const {
 
 const outputDisplay = useOutputDisplay(stdout);
 
+// Track copied state for Copy Query button with 2-second auto-reset
+const queryCopied = ref(false);
+let queryCopiedTimeout: ReturnType<typeof setTimeout> | null = null;
+
+const handleCopyQuery = async () => {
+  const success = await copyToClipboard(query.value);
+  if (success) {
+    queryCopied.value = true;
+    if (queryCopiedTimeout) clearTimeout(queryCopiedTimeout);
+    queryCopiedTimeout = setTimeout(() => {
+      queryCopied.value = false;
+    }, 2000);
+  }
+};
+
+// Track copied state for Copy Output button with 2-second auto-reset
+const outputCopied = ref(false);
+let outputCopiedTimeout: ReturnType<typeof setTimeout> | null = null;
+
+const handleCopyOutput = async () => {
+  const success = await copyToClipboard(stdout.value);
+  if (success) {
+    outputCopied.value = true;
+    if (outputCopiedTimeout) clearTimeout(outputCopiedTimeout);
+    outputCopiedTimeout = setTimeout(() => {
+      outputCopied.value = false;
+    }, 2000);
+  }
+};
+
 declare const __JQ_DEBUG__: boolean;
 const isDev = typeof __JQ_DEBUG__ !== "undefined" && __JQ_DEBUG__;
 
@@ -112,10 +142,10 @@ onMounted(() => {
         Filter
       </button>
       <button
-        @click="copyToClipboard(query)"
+        @click="handleCopyQuery"
         class="px-3 py-1 bg-white/5 hover:bg-white/10 rounded text-xs transition-colors"
       >
-        Copy Query
+        {{ queryCopied ? "✓ Copied" : "Copy Query" }}
       </button>
       <!-- v-model works correctly with the current Caido SDK (0.x) view mode host.
            Older versions had binding issues requiring explicit :checked + @change;
@@ -155,7 +185,8 @@ onMounted(() => {
         :isOutputTruncated="outputDisplay.isOutputTruncated.value"
         :showFullOutput="outputDisplay.showFullOutput.value"
         :isLoading="isLoading"
-        @copy="copyToClipboard(stdout)"
+        :outputCopied="outputCopied"
+        @copy="handleCopyOutput"
         @toggleFullOutput="outputDisplay.showFullOutput.value = !outputDisplay.showFullOutput.value"
       />
     </div>

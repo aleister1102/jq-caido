@@ -96,7 +96,7 @@ const onKeyDown = (e: KeyboardEvent) => {
       :placeholder="placeholder"
       class="w-full bg-transparent border border-white/10 rounded px-3 py-1 text-sm focus:outline-none focus:border-white/30 transition-colors"
     />
-    
+
     <SuggestionDropdown
       :suggestions="suggestions"
       :selectedIndex="selectedIndex"
@@ -112,3 +112,4 @@ const onKeyDown = (e: KeyboardEvent) => {
   font-family: var(--font-mono, monospace);
 }
 </style>
+
