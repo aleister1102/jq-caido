@@ -1,6 +1,8 @@
 import { computed, ref, type ComputedRef } from "vue";
 import { extractJsonBodyString } from "../lib/extractJsonBody";
 
+const LARGE_PAYLOAD_THRESHOLD_BYTES = 10_000_000;
+
 export type RawCarrier = { raw?: string; id?: string } | undefined;
 
 export type PropsShape = {
@@ -26,6 +28,7 @@ function nonEmptyId(...candidates: (string | undefined)[]): string | null {
 
 export function useRawPayload(props: ComputedRef<PropsShape>) {
   const parsedJson = ref<any>(null);
+  const parsedJsonSource = ref("");
 
   const rawCandidates = computed<Record<string, string | undefined>>(() => ({
     raw: props.value.raw,
@@ -52,6 +55,12 @@ export function useRawPayload(props: ComputedRef<PropsShape>) {
   });
 
   const bodyText = computed(() => extractJsonBodyString(rawInfo.value.raw) ?? "");
+  const isLargePayload = computed(() => bodyText.value.length > LARGE_PAYLOAD_THRESHOLD_BYTES);
+
+  const autocompleteWarning = computed(() => {
+    if (!isLargePayload.value) return "";
+    return `Autocomplete disabled for large payloads over ${(LARGE_PAYLOAD_THRESHOLD_BYTES / 1_000_000).toFixed(0)} MB.`;
+  });
 
   const bodyParse = computed(() => {
     const text = bodyText.value;
@@ -59,11 +68,41 @@ export function useRawPayload(props: ComputedRef<PropsShape>) {
     return { ok: true, type: "json (unvalidated)", valuePreview: safePreview(text) };
   });
 
-  const updateParsedJson = (json: string) => {
-    if (!json || json.length > 5_000_000) { parsedJson.value = null; return; }
-    try { parsedJson.value = JSON.parse(json); }
-    catch { parsedJson.value = null; }
+  const ensureParsedJson = () => {
+    const json = bodyText.value;
+    if (!json || isLargePayload.value) {
+      parsedJson.value = null;
+      parsedJsonSource.value = "";
+      return;
+    }
+    if (parsedJsonSource.value === json && parsedJson.value !== null) {
+      return;
+    }
+    try {
+      parsedJson.value = JSON.parse(json);
+      parsedJsonSource.value = json;
+    }
+    catch {
+      parsedJson.value = null;
+      parsedJsonSource.value = "";
+    }
   };
 
-  return { rawCandidates, rawInfo, selectedIds, bodyText, bodyParse, parsedJson, updateParsedJson };
+  const clearParsedJson = () => {
+    parsedJson.value = null;
+    parsedJsonSource.value = "";
+  };
+
+  return {
+    rawCandidates,
+    rawInfo,
+    selectedIds,
+    bodyText,
+    bodyParse,
+    parsedJson,
+    isLargePayload,
+    autocompleteWarning,
+    ensureParsedJson,
+    clearParsedJson,
+  };
 }

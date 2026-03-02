@@ -4,14 +4,12 @@ defineProps<{
   displayOutput: string;
   shouldHighlight: boolean;
   isOutputTruncated: boolean;
-  showFullOutput: boolean;
   isLoading: boolean;
   outputCopied: boolean;
 }>();
 
 const emit = defineEmits<{
   (e: "copy"): void;
-  (e: "toggleFullOutput"): void;
 }>();
 </script>
 
@@ -24,13 +22,6 @@ const emit = defineEmits<{
         class="px-2 py-1 bg-white/5 hover:bg-white/10 rounded text-[10px] uppercase tracking-wider opacity-60 hover:opacity-100 transition-all"
       >
         {{ outputCopied ? "✓ Copied" : "Copy Output" }}
-      </button>
-      <button
-        v-if="isOutputTruncated || showFullOutput"
-        @click="emit('toggleFullOutput')"
-        class="px-2 py-1 bg-white/5 hover:bg-white/10 rounded text-[10px] uppercase tracking-wider opacity-60 hover:opacity-100 transition-all"
-      >
-        {{ showFullOutput ? 'Show Truncated' : 'Show Full Output' }}
       </button>
     </div>
     <pre :class="['flex-1 p-4 m-0 overflow-auto text-sm font-mono whitespace-pre-wrap', shouldHighlight && !isOutputTruncated ? 'language-json' : '']"><code v-html="displayOutput || (isLoading ? 'Processing...' : 'No output')"></code></pre>

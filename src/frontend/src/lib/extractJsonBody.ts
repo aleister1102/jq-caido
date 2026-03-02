@@ -1,12 +1,14 @@
 export function extractJsonBodyString(raw: string): string | null {
   if (!raw) return null;
 
-  // If we have an HTTP message, split headers/body.
-  if (raw.includes("\r\n\r\n") || raw.includes("\n\n")) {
-    const separator = raw.includes("\r\n\r\n") ? "\r\n\r\n" : "\n\n";
-    const parts = raw.split(separator);
-    if (parts.length < 2) return null;
-    return parts.slice(1).join(separator).trim();
+  const crlfBoundary = raw.indexOf("\r\n\r\n");
+  if (crlfBoundary !== -1) {
+    return raw.slice(crlfBoundary + 4).trim();
+  }
+
+  const lfBoundary = raw.indexOf("\n\n");
+  if (lfBoundary !== -1) {
+    return raw.slice(lfBoundary + 2).trim();
   }
 
   // Otherwise, assume it's already a JSON string (body-only).

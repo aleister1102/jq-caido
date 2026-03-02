@@ -28,8 +28,12 @@ loadSettings();
 const {
   rawInfo,
   selectedIds,
+  bodyText,
   parsedJson,
-  updateParsedJson,
+  isLargePayload,
+  autocompleteWarning,
+  ensureParsedJson,
+  clearParsedJson,
 } = useRawPayload(computed(() => props));
 
 const {
@@ -45,8 +49,14 @@ const {
   isRaw,
   keysOnly,
   filterNulls,
-  updateParsedJson,
+  isLargePayload,
+  clearParsedJson,
 );
+
+const noNullsWarning = computed(() => {
+  if (!filterNulls.value || !isLargePayload.value) return "";
+  return "No Nulls is disabled for payloads over 10 MB to keep queries responsive.";
+});
 
 const outputDisplay = useOutputDisplay(stdout);
 
@@ -83,6 +93,14 @@ const executeJq = async () => {
   await executeJqInternal();
 };
 
+const requestAutocomplete = () => {
+  ensureParsedJson();
+};
+
+watch(() => bodyText.value, () => {
+  clearParsedJson();
+});
+
 // Save settings only when the persisted flags change
 watch([isCompact, isRaw, keysOnly, filterNulls], () => {
   saveSettings();
@@ -110,6 +128,8 @@ onUnmounted(() => {
       <JqQueryInput
         v-model="query"
         :rootJson="parsedJson"
+        :autocompleteWarning="autocompleteWarning"
+        @requestAutocomplete="requestAutocomplete"
         @submit="executeJq"
         placeholder="Enter jq query (e.g. .foo[0])"
       />
@@ -140,6 +160,10 @@ onUnmounted(() => {
       </label>
     </div>
 
+    <div v-if="noNullsWarning" class="text-xs text-white/60 -mt-2">
+      {{ noNullsWarning }}
+    </div>
+
     <div class="flex-1 flex flex-col min-h-0 gap-2">
       <div v-if="stderr" class="p-3 bg-red-900/20 border border-red-500/30 rounded text-red-200 text-xs font-mono whitespace-pre-wrap overflow-auto max-h-32">
         {{ stderr }}
@@ -150,11 +174,9 @@ onUnmounted(() => {
         :displayOutput="outputDisplay.displayOutput.value"
         :shouldHighlight="outputDisplay.shouldHighlight.value"
         :isOutputTruncated="outputDisplay.isOutputTruncated.value"
-        :showFullOutput="outputDisplay.showFullOutput.value"
         :isLoading="isLoading"
         :outputCopied="outputCopied"
         @copy="handleCopyOutput"
-        @toggleFullOutput="outputDisplay.showFullOutput.value = !outputDisplay.showFullOutput.value"
       />
     </div>
   </div>

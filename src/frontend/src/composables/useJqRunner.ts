@@ -1,7 +1,6 @@
 import { ref, onUnmounted, watch, type Ref, type ComputedRef } from "vue";
 import { extractJsonBodyString } from "../lib/extractJsonBody";
 import { runJq } from "../lib/runJq";
-import { getCaido } from "../caido";
 
 export function useJqRunner(
   rawInfo: ComputedRef<{ raw: string; source: string }>,
@@ -11,7 +10,8 @@ export function useJqRunner(
   isRaw: Ref<boolean>,
   keysOnly: Ref<boolean>,
   filterNulls: Ref<boolean>,
-  updateParsedJson: (json: string) => void,
+  isLargePayload: ComputedRef<boolean>,
+  clearParsedJson: () => void,
 ) {
   const stdout = ref("");
   const stderr = ref("");
@@ -38,7 +38,7 @@ export function useJqRunner(
     const jsonBody = extractJsonBodyString(raw);
     if (!jsonBody) {
       stdout.value = "";
-      updateParsedJson("");
+      clearParsedJson();
       stderr.value = "Error: No JSON body found in the selected message.";
       if (thisGen === generation) {
         isLoading.value = false;
@@ -56,7 +56,7 @@ export function useJqRunner(
     if (keysOnly.value) {
       effectiveQuery = `(${effectiveQuery}) | keys`;
     }
-    if (filterNulls.value) {
+    if (filterNulls.value && !isLargePayload.value) {
       effectiveQuery = `(${effectiveQuery}) | walk(if type == "object" then with_entries(select(.value != null)) else . end)`;
     }
 
@@ -66,12 +66,14 @@ export function useJqRunner(
       if (thisGen !== generation) return; // stale, discard
 
       stdout.value = result.stdout;
-      stderr.value =
+      const runnerError =
         result.stderr ||
         (result.timedOut ? "Error: jq-wasm timed out (likely wasm failed to load in Caido)" : "") ||
         (result.exitCode !== 0 ? `Error: jq exited with code ${result.exitCode}` : "");
-
-      updateParsedJson(typeof jsonBody === "string" ? jsonBody : "");
+      const nullsDisabledWarning = filterNulls.value && isLargePayload.value
+        ? "Warning: No Nulls is disabled for payloads over 10 MB."
+        : "";
+      stderr.value = [runnerError, nullsDisabledWarning].filter(Boolean).join("\n");
     } finally {
       if (thisGen === generation) {
         isLoading.value = false;
