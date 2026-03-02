@@ -3,20 +3,48 @@ import { computed } from "vue";
 import { useRawPayload, type PropsShape } from "../useRawPayload";
 
 describe("useRawPayload", () => {
-  it("should parse payload on ensureParsedJson for 1MB payload", () => {
-    const oneMbJson = JSON.stringify({ data: "a".repeat(1024 * 1024) });
-    const oneMbLimit = 1024 * 1024;
-    expect(oneMbJson.length).toBeGreaterThanOrEqual(oneMbLimit);
-    expect(oneMbJson.length).toBeLessThan(10_000_000);
+  it("should parse payload on ensureParsedJson for small payload (< 300KB)", () => {
+    const smallJson = JSON.stringify({ data: "a".repeat(100) });
 
-    const oneMbPayloadProps = computed<PropsShape>(() => ({
-      raw: oneMbJson,
+    const props = computed<PropsShape>(() => ({
+      raw: smallJson,
     }));
-    const state = useRawPayload(oneMbPayloadProps);
+    const state = useRawPayload(props);
     state.ensureParsedJson();
 
     expect(state.parsedJson.value).not.toBeNull();
-    expect(state.parsedJson.value.data.length).toBe(1024 * 1024);
+    expect(state.parsedJson.value.data.length).toBe(100);
+  });
+
+  it("should flag isOversized for payload > 300KB", () => {
+    const oversizedJson = JSON.stringify({ data: "a".repeat(310 * 1024) });
+    const props = computed<PropsShape>(() => ({
+      raw: oversizedJson,
+    }));
+    const { isOversized } = useRawPayload(props);
+
+    expect(isOversized.value).toBe(true);
+  });
+
+  it("should not flag isOversized for payload <= 300KB", () => {
+    const smallJson = JSON.stringify({ data: "a".repeat(100) });
+    const props = computed<PropsShape>(() => ({
+      raw: smallJson,
+    }));
+    const { isOversized } = useRawPayload(props);
+
+    expect(isOversized.value).toBe(false);
+  });
+
+  it("should skip parsedJson for oversized payload (> 300KB)", () => {
+    const oversizedJson = JSON.stringify({ data: "a".repeat(310 * 1024) });
+    const props = computed<PropsShape>(() => ({
+      raw: oversizedJson,
+    }));
+    const state = useRawPayload(props);
+    state.ensureParsedJson();
+
+    expect(state.parsedJson.value).toBeNull();
   });
 
   it("should skip parsedJson for payload > 10MB", () => {

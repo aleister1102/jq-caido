@@ -1,6 +1,7 @@
 import { ref, onUnmounted, watch, type Ref, type ComputedRef } from "vue";
 import { extractJsonBodyString } from "../lib/extractJsonBody";
 import { runJq } from "../lib/runJq";
+import { OVERSIZED_PAYLOAD_BYTES } from "./useRawPayload";
 
 export function useJqRunner(
   rawInfo: ComputedRef<{ raw: string; source: string }>,
@@ -10,6 +11,7 @@ export function useJqRunner(
   isRaw: Ref<boolean>,
   keysOnly: Ref<boolean>,
   filterNulls: Ref<boolean>,
+  isOversized: ComputedRef<boolean>,
   isLargePayload: ComputedRef<boolean>,
   clearParsedJson: () => void,
 ) {
@@ -29,6 +31,16 @@ export function useJqRunner(
     if (!raw) {
       stdout.value = "";
       stderr.value = "Error: No raw content provided to this view mode.";
+      if (thisGen === generation) {
+        isLoading.value = false;
+      }
+      return;
+    }
+
+    if (isOversized.value) {
+      stdout.value = "";
+      clearParsedJson();
+      stderr.value = `Payload too large (> ${Math.round(OVERSIZED_PAYLOAD_BYTES / 1000)} KB) — jq is disabled to prevent UI freeze. Reduce payload size to enable jq processing.`;
       if (thisGen === generation) {
         isLoading.value = false;
       }
