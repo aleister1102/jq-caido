@@ -1,30 +1,6 @@
 import { ref, onUnmounted, watch, type Ref, type ComputedRef } from "vue";
 import { extractJsonBodyString } from "../lib/extractJsonBody";
 import { runJq } from "../lib/runJq";
-import { getCaido } from "../caido";
-
-export type RunMeta = {
-  query: string;
-  flags: string[];
-  durationMs: number;
-  exitCode: number;
-  stdoutLen: number;
-  stderrLen: number;
-};
-
-export type GraphqlFetchState = {
-  tried: boolean;
-  ok: boolean;
-  kind: "request" | "response" | null;
-  id: string | null;
-  error: string | null;
-  rawLength: number;
-};
-
-const EMPTY_GQL: GraphqlFetchState = { tried: false, ok: false, kind: null, id: null, error: null, rawLength: 0 };
-
-// GraphQL fallback cache: key is "request:id" or "response:id"
-const gqlCache = new Map<string, string>();
 
 export function useJqRunner(
   rawInfo: ComputedRef<{ raw: string; source: string }>,
@@ -34,13 +10,12 @@ export function useJqRunner(
   isRaw: Ref<boolean>,
   keysOnly: Ref<boolean>,
   filterNulls: Ref<boolean>,
-  updateParsedJson: (json: string) => void,
+  isLargePayload: ComputedRef<boolean>,
+  clearParsedJson: () => void,
 ) {
   const stdout = ref("");
   const stderr = ref("");
   const isLoading = ref(false);
-  const lastRun = ref<RunMeta | null>(null);
-  const graphqlFetch = ref<GraphqlFetchState>({ ...EMPTY_GQL });
 
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
   let generation = 0;
@@ -48,107 +23,27 @@ export function useJqRunner(
   const executeJq = async () => {
     const thisGen = ++generation;
     const raw = rawInfo.value.raw;
-    const phaseStart = performance.now?.() ?? Date.now();
 
     stderr.value = "";
 
     if (!raw) {
       stdout.value = "";
-      stderr.value = "Error: No raw content provided to this view mode. Enable Debug to inspect received props.";
+      stderr.value = "Error: No raw content provided to this view mode.";
       if (thisGen === generation) {
         isLoading.value = false;
       }
       return;
     }
 
-    const extractStart = performance.now?.() ?? Date.now();
-    let jsonBody = extractJsonBodyString(raw);
-    const extractEnd = performance.now?.() ?? Date.now();
-    const extractMs = Math.max(0, Math.round(extractEnd - extractStart));
-
-    // If Caido only provided headers (no body), fall back to GraphQL request/response(id)->raw
-    // and retry parsing from the fully stored raw value.
-    if (!jsonBody) {
-      const caido = getCaido();
-      const { requestId, responseId } = selectedIds.value;
-      graphqlFetch.value = {
-        tried: true,
-        ok: false,
-        kind: null,
-        id: null,
-        error: null,
-        rawLength: 0,
-      };
-
-      try {
-        if (caido && requestId) {
-          graphqlFetch.value.kind = "request";
-          graphqlFetch.value.id = requestId;
-          const cacheKey = `request:${requestId}`;
-          const gqlStart = performance.now?.() ?? Date.now();
-          const cachedRaw = gqlCache.get(cacheKey);
-          let fullRaw: string | undefined = cachedRaw;
-
-          if (!fullRaw) {
-            const res = await caido.graphql.request({ id: requestId });
-            fullRaw = res?.request?.raw;
-            if (typeof fullRaw === "string" && fullRaw.length > 0) {
-              gqlCache.set(cacheKey, fullRaw);
-            }
-          }
-          const gqlEnd = performance.now?.() ?? Date.now();
-          if (fullRaw && fullRaw.length > 1_000_000) {
-            console.debug(`[JQ] GraphQL fallback for request in ${(gqlEnd - gqlStart).toFixed(2)}ms`);
-          }
-
-          if (typeof fullRaw === "string" && fullRaw.length > 0) {
-            graphqlFetch.value.ok = true;
-            graphqlFetch.value.rawLength = fullRaw.length;
-            jsonBody = extractJsonBodyString(fullRaw);
-          }
-        } else if (caido && responseId) {
-          graphqlFetch.value.kind = "response";
-          graphqlFetch.value.id = responseId;
-          const cacheKey = `response:${responseId}`;
-          const gqlStart = performance.now?.() ?? Date.now();
-          const cachedRaw = gqlCache.get(cacheKey);
-          let fullRaw: string | undefined = cachedRaw;
-
-          if (!fullRaw) {
-            const res = await caido.graphql.response({ id: responseId });
-            fullRaw = res?.response?.raw;
-            if (typeof fullRaw === "string" && fullRaw.length > 0) {
-              gqlCache.set(cacheKey, fullRaw);
-            }
-          }
-          const gqlEnd = performance.now?.() ?? Date.now();
-          if (fullRaw && fullRaw.length > 1_000_000) {
-            console.debug(`[JQ] GraphQL fallback for response in ${(gqlEnd - gqlStart).toFixed(2)}ms`);
-          }
-
-          if (typeof fullRaw === "string" && fullRaw.length > 0) {
-            graphqlFetch.value.ok = true;
-            graphqlFetch.value.rawLength = fullRaw.length;
-            jsonBody = extractJsonBodyString(fullRaw);
-          }
-        }
-      } catch (e: any) {
-        graphqlFetch.value.error = e?.message ? String(e.message) : String(e);
-      }
-    }
-
+    const jsonBody = extractJsonBodyString(raw);
     if (!jsonBody) {
       stdout.value = "";
-      stderr.value =
-        graphqlFetch.value.tried && !graphqlFetch.value.ok
-          ? `Error: Body is not valid JSON (and GraphQL fallback failed: ${graphqlFetch.value.error ?? "no raw returned"})`
-          : "Error: Body is not valid JSON";
-      if (thisGen === generation) isLoading.value = false;
+      clearParsedJson();
+      stderr.value = "Error: No JSON body found in the selected message.";
+      if (thisGen === generation) {
+        isLoading.value = false;
+      }
       return;
-    }
-
-    if (jsonBody.length > 1_000_000) {
-      console.debug(`[JQ] Extracted body in ${extractMs}ms, total ${jsonBody.length} bytes`);
     }
 
     isLoading.value = true;
@@ -161,37 +56,24 @@ export function useJqRunner(
     if (keysOnly.value) {
       effectiveQuery = `(${effectiveQuery}) | keys`;
     }
-    if (filterNulls.value) {
+    if (filterNulls.value && !isLargePayload.value) {
       effectiveQuery = `(${effectiveQuery}) | walk(if type == "object" then with_entries(select(.value != null)) else . end)`;
     }
 
     try {
-      const started = performance.now?.() ?? Date.now();
       const result = await runJq(jsonBody, effectiveQuery, flags);
-      const ended = performance.now?.() ?? Date.now();
-      const jqMs = Math.max(0, Math.round(ended - started));
 
       if (thisGen !== generation) return; // stale, discard
 
       stdout.value = result.stdout;
-      if (jsonBody.length > 1_000_000 || result.stdout.length > 500_000) {
-        console.debug(`[JQ] jq execution in ${jqMs}ms, input ${jsonBody.length} bytes → output ${result.stdout.length} bytes`);
-      }
-      stderr.value =
+      const runnerError =
         result.stderr ||
         (result.timedOut ? "Error: jq-wasm timed out (likely wasm failed to load in Caido)" : "") ||
         (result.exitCode !== 0 ? `Error: jq exited with code ${result.exitCode}` : "");
-
-      lastRun.value = {
-        query: query.value,
-        flags,
-        durationMs: Math.max(0, Math.round(ended - started)),
-        exitCode: result.exitCode,
-        stdoutLen: result.stdout.length,
-        stderrLen: result.stderr.length,
-      };
-
-      updateParsedJson(jsonBody);
+      const nullsDisabledWarning = filterNulls.value && isLargePayload.value
+        ? "Warning: No Nulls is disabled for payloads over 10 MB."
+        : "";
+      stderr.value = [runnerError, nullsDisabledWarning].filter(Boolean).join("\n");
     } finally {
       if (thisGen === generation) {
         isLoading.value = false;
@@ -227,8 +109,6 @@ export function useJqRunner(
     stdout,
     stderr,
     isLoading,
-    lastRun,
-    graphqlFetch,
     executeJq,
   };
 }

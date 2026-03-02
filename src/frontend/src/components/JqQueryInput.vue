@@ -9,15 +9,18 @@ const props = defineProps<{
   modelValue: string;
   rootJson: any;
   placeholder?: string;
+  autocompleteWarning?: string;
 }>();
 
 const emit = defineEmits<{
   (e: "update:modelValue", value: string): void;
+  (e: "requestAutocomplete"): void;
   (e: "submit"): void;
 }>();
 
 const inputRef = ref<HTMLInputElement | null>(null);
 const containerRef = ref<HTMLElement | null>(null);
+const isAutocompleteEnabled = computed(() => !props.autocompleteWarning);
 
 const {
   showSuggestions,
@@ -39,12 +42,19 @@ useClickOutside(containerRef, hideSuggestionsDropdown);
 const onInput = (e: Event) => {
   const target = e.target as HTMLInputElement;
   emit("update:modelValue", target.value);
-  const inputEvent = e as InputEvent;
-  if (inputEvent.inputType?.startsWith("delete")) {
+  if (isAutocompleteEnabled.value) {
+    emit("requestAutocomplete");
+    showSuggestionsDropdown();
+  } else {
     hideSuggestionsDropdown();
-    return;
   }
-  showSuggestionsDropdown();
+};
+
+const onFocus = () => {
+  if (isAutocompleteEnabled.value) {
+    emit("requestAutocomplete");
+    showSuggestionsDropdown();
+  }
 };
 
 const selectSuggestion = (suggestion: Suggestion) => {
@@ -59,7 +69,10 @@ const onKeyDown = (e: KeyboardEvent) => {
       emit("submit");
     }
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-      showSuggestionsDropdown();
+      if (isAutocompleteEnabled.value) {
+        emit("requestAutocomplete");
+        showSuggestionsDropdown();
+      }
     }
     return;
   }
@@ -92,11 +105,11 @@ const onKeyDown = (e: KeyboardEvent) => {
       :value="modelValue"
       @input="onInput"
       @keydown="onKeyDown"
-      @focus="showSuggestionsDropdown"
+      @focus="onFocus"
       :placeholder="placeholder"
       class="w-full bg-transparent border border-white/10 rounded px-3 py-1 text-sm focus:outline-none focus:border-white/30 transition-colors"
     />
-    
+
     <SuggestionDropdown
       :suggestions="suggestions"
       :selectedIndex="selectedIndex"
@@ -104,6 +117,10 @@ const onKeyDown = (e: KeyboardEvent) => {
       @select="selectSuggestion"
       @hover="setSelectedIndex"
     />
+
+    <div v-if="autocompleteWarning" class="mt-1 text-xs text-white/60">
+      {{ autocompleteWarning }}
+    </div>
   </div>
 </template>
 
@@ -112,3 +129,4 @@ const onKeyDown = (e: KeyboardEvent) => {
   font-family: var(--font-mono, monospace);
 }
 </style>
+

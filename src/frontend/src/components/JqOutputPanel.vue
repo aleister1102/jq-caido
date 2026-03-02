@@ -4,13 +4,12 @@ defineProps<{
   displayOutput: string;
   shouldHighlight: boolean;
   isOutputTruncated: boolean;
-  showFullOutput: boolean;
   isLoading: boolean;
+  outputCopied: boolean;
 }>();
 
 const emit = defineEmits<{
   (e: "copy"): void;
-  (e: "toggleFullOutput"): void;
 }>();
 </script>
 
@@ -18,18 +17,11 @@ const emit = defineEmits<{
   <div class="flex-1 relative min-h-0 bg-black/20 border border-white/5 rounded overflow-hidden flex flex-col">
     <div class="absolute top-2 right-2 flex gap-2 z-10">
       <button
-        @click="emit('copy')"
         v-if="stdout"
+        @click="emit('copy')"
         class="px-2 py-1 bg-white/5 hover:bg-white/10 rounded text-[10px] uppercase tracking-wider opacity-60 hover:opacity-100 transition-all"
       >
-        Copy Output
-      </button>
-      <button
-        @click="emit('toggleFullOutput')"
-        v-if="isOutputTruncated || showFullOutput"
-        class="px-2 py-1 bg-white/5 hover:bg-white/10 rounded text-[10px] uppercase tracking-wider opacity-60 hover:opacity-100 transition-all"
-      >
-        {{ showFullOutput ? 'Show Truncated' : 'Show Full Output' }}
+        {{ outputCopied ? "✓ Copied" : "Copy Output" }}
       </button>
     </div>
     <pre :class="['flex-1 p-4 m-0 overflow-auto text-sm font-mono whitespace-pre-wrap', shouldHighlight && !isOutputTruncated ? 'language-json' : '']"><code v-html="displayOutput || (isLoading ? 'Processing...' : 'No output')"></code></pre>
