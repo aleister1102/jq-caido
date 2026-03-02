@@ -74,13 +74,6 @@ onMounted(() => {
         placeholder="Enter jq query (e.g. .foo[0])"
       />
       <button
-        @click="executeJq"
-        :disabled="isLoading"
-        class="px-4 py-1 bg-white/5 hover:bg-white/10 rounded text-sm transition-colors"
-      >
-        Filter
-      </button>
-      <button
         @click="copyToClipboard(query)"
         class="px-3 py-1 bg-white/5 hover:bg-white/10 rounded text-xs transition-colors"
       >

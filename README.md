@@ -6,7 +6,7 @@ Inspired by [burp-jq](https://github.com/synacktiv/burp-jq) (Synacktiv).
 
 ## Features
 
-- **Real `jq` queries** powered by [jq-wasm](https://github.com/mwilliamson/jq-wasm).
+- **Real `jq` queries** powered by [jq-wasm](https://github.com/owenthereal/jq-wasm).
 - **Autocomplete** based on your JSON structure (supports nested objects, arrays, and `[]` iterators).
 - **Syntax highlighting** via [Prism.js](https://prismjs.com/).
 - **Quick filters**: Compact (`-c`), Raw (`-r`), Keys-only, and Null removal toggles.
@@ -35,6 +35,14 @@ Inspired by [burp-jq](https://github.com/synacktiv/burp-jq) (Synacktiv).
 3. Type a `jq` query (e.g., `.data[].id`) and press **Enter** or click **Filter**.
 4. Use **Copy Output** or **Copy Query** to grab results.
 
+## Source Documentation
+
+Architecture notes were moved into source-local README files:
+
+- [frontend architecture and flow](src/frontend/src/README.md)
+- [`useRawPayload`, `parsedJson`, autocomplete caching](src/frontend/src/composables/README.md)
+- [`JqQueryInput` and `modelValue` convention](src/frontend/src/components/README.md)
+
 ## Development
 
 ```bash
@@ -61,7 +69,7 @@ bun run package
 ## Credits
 
 - [burp-jq](https://github.com/synacktiv/burp-jq) by Synacktiv
-- [jq-wasm](https://github.com/pboutes/jq-wasm)
+- [jq-wasm](https://github.com/owenthereal/jq-wasm)
 - [Prism.js](https://prismjs.com/)
 
 ## Author

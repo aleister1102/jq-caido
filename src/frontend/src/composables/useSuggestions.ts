@@ -18,11 +18,9 @@ export function useSuggestions(
     if (selectedIndex.value >= suggestions.value.length) selectedIndex.value = 0;
   };
 
-  watch(() => modelValue.value, () => {
-    updateSuggestions();
-  });
-
-  watch(() => rootJson.value, () => {
+  // Combine watchers to avoid duplicate updateSuggestions calls
+  // Both query and JSON changes trigger suggestion updates
+  watch([() => modelValue.value, () => rootJson.value], () => {
     updateSuggestions();
   });
 
