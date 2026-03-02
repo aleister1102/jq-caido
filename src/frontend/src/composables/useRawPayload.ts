@@ -60,7 +60,7 @@ export function useRawPayload(props: ComputedRef<PropsShape>) {
   });
 
   const updateParsedJson = (json: string) => {
-    if (!json || json.length > 5_000_000) { parsedJson.value = null; return; }
+    if (!json || json.length > 10_000_000) { parsedJson.value = null; return; }
     try { parsedJson.value = JSON.parse(json); }
     catch { parsedJson.value = null; }
   };

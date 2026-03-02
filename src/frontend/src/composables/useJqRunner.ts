@@ -23,6 +23,9 @@ export type GraphqlFetchState = {
 
 const EMPTY_GQL: GraphqlFetchState = { tried: false, ok: false, kind: null, id: null, error: null, rawLength: 0 };
 
+// GraphQL fallback cache: key is "request:id" or "response:id"
+const gqlCache = new Map<string, string>();
+
 export function useJqRunner(
   rawInfo: ComputedRef<{ raw: string; source: string }>,
   selectedIds: ComputedRef<{ requestId: string | null; responseId: string | null }>,
@@ -45,6 +48,7 @@ export function useJqRunner(
   const executeJq = async () => {
     const thisGen = ++generation;
     const raw = rawInfo.value.raw;
+    const phaseStart = performance.now?.() ?? Date.now();
 
     stderr.value = "";
 
@@ -57,7 +61,10 @@ export function useJqRunner(
       return;
     }
 
+    const extractStart = performance.now?.() ?? Date.now();
     let jsonBody = extractJsonBodyString(raw);
+    const extractEnd = performance.now?.() ?? Date.now();
+    const extractMs = Math.max(0, Math.round(extractEnd - extractStart));
 
     // If Caido only provided headers (no body), fall back to GraphQL request/response(id)->raw
     // and retry parsing from the fully stored raw value.
@@ -77,8 +84,23 @@ export function useJqRunner(
         if (caido && requestId) {
           graphqlFetch.value.kind = "request";
           graphqlFetch.value.id = requestId;
-          const res = await caido.graphql.request({ id: requestId });
-          const fullRaw = res?.request?.raw;
+          const cacheKey = `request:${requestId}`;
+          const gqlStart = performance.now?.() ?? Date.now();
+          const cachedRaw = gqlCache.get(cacheKey);
+          let fullRaw: string | undefined = cachedRaw;
+
+          if (!fullRaw) {
+            const res = await caido.graphql.request({ id: requestId });
+            fullRaw = res?.request?.raw;
+            if (typeof fullRaw === "string" && fullRaw.length > 0) {
+              gqlCache.set(cacheKey, fullRaw);
+            }
+          }
+          const gqlEnd = performance.now?.() ?? Date.now();
+          if (fullRaw && fullRaw.length > 1_000_000) {
+            console.debug(`[JQ] GraphQL fallback for request in ${(gqlEnd - gqlStart).toFixed(2)}ms`);
+          }
+
           if (typeof fullRaw === "string" && fullRaw.length > 0) {
             graphqlFetch.value.ok = true;
             graphqlFetch.value.rawLength = fullRaw.length;
@@ -87,8 +109,23 @@ export function useJqRunner(
         } else if (caido && responseId) {
           graphqlFetch.value.kind = "response";
           graphqlFetch.value.id = responseId;
-          const res = await caido.graphql.response({ id: responseId });
-          const fullRaw = res?.response?.raw;
+          const cacheKey = `response:${responseId}`;
+          const gqlStart = performance.now?.() ?? Date.now();
+          const cachedRaw = gqlCache.get(cacheKey);
+          let fullRaw: string | undefined = cachedRaw;
+
+          if (!fullRaw) {
+            const res = await caido.graphql.response({ id: responseId });
+            fullRaw = res?.response?.raw;
+            if (typeof fullRaw === "string" && fullRaw.length > 0) {
+              gqlCache.set(cacheKey, fullRaw);
+            }
+          }
+          const gqlEnd = performance.now?.() ?? Date.now();
+          if (fullRaw && fullRaw.length > 1_000_000) {
+            console.debug(`[JQ] GraphQL fallback for response in ${(gqlEnd - gqlStart).toFixed(2)}ms`);
+          }
+
           if (typeof fullRaw === "string" && fullRaw.length > 0) {
             graphqlFetch.value.ok = true;
             graphqlFetch.value.rawLength = fullRaw.length;
@@ -110,6 +147,10 @@ export function useJqRunner(
       return;
     }
 
+    if (jsonBody.length > 1_000_000) {
+      console.debug(`[JQ] Extracted body in ${extractMs}ms, total ${jsonBody.length} bytes`);
+    }
+
     isLoading.value = true;
 
     const flags: string[] = [];
@@ -128,10 +169,14 @@ export function useJqRunner(
       const started = performance.now?.() ?? Date.now();
       const result = await runJq(jsonBody, effectiveQuery, flags);
       const ended = performance.now?.() ?? Date.now();
+      const jqMs = Math.max(0, Math.round(ended - started));
 
       if (thisGen !== generation) return; // stale, discard
 
       stdout.value = result.stdout;
+      if (jsonBody.length > 1_000_000 || result.stdout.length > 500_000) {
+        console.debug(`[JQ] jq execution in ${jqMs}ms, input ${jsonBody.length} bytes → output ${result.stdout.length} bytes`);
+      }
       stderr.value =
         result.stderr ||
         (result.timedOut ? "Error: jq-wasm timed out (likely wasm failed to load in Caido)" : "") ||

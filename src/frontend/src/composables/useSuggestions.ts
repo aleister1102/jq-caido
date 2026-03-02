@@ -1,7 +1,7 @@
 import { ref, watch, type Ref, type ComputedRef } from "vue";
 import { getSuggestions, type Suggestion } from "../lib/jq-suggestion";
 
-
+// Autocomplete is disabled for bodies > 1MB and for objects with > 10,000 root keys.
 export function useSuggestions(
   modelValue: Ref<string> | ComputedRef<string>,
   rootJson: Ref<any> | ComputedRef<any>,
@@ -14,7 +14,7 @@ export function useSuggestions(
     if (json == null) return false;
     // Rough estimation if it's already an object
     // For large JSON, we'd rather not stringify it just to check length,
-    // but the rootJson in useRawPayload is already gated by 5MB string length.
+    // but the rootJson in useRawPayload is already gated by 10MB string length.
     // Let's use a heuristic: if we have more than 10,000 keys at root, it's probably too slow.
     if (typeof json === "object" && !Array.isArray(json)) {
       return Object.keys(json as Record<string, unknown>).length > 10000;

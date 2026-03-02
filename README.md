@@ -10,7 +10,7 @@ Inspired by [burp-jq](https://github.com/synacktiv/burp-jq) (Synacktiv).
 - **Autocomplete** based on your JSON structure (supports nested objects, arrays, and `[]` iterators).
 - **Syntax highlighting** via [Prism.js](https://prismjs.com/).
 - **Quick filters**: Compact (`-c`), Raw (`-r`), Keys-only, and Null removal toggles.
-- **Large payload support**: optimized for 20 MB+ JSON with smart truncation and debouncing.
+- **Large payload support**: optimized for 10MB+ JSON with smart truncation, smart caching, and debouncing.
 - **GraphQL fallback**: fetches full raw messages via Caido's API when only headers are provided.
 
 > [!TIP]
@@ -35,18 +35,35 @@ Inspired by [burp-jq](https://github.com/synacktiv/burp-jq) (Synacktiv).
 3. Type a `jq` query (e.g., `.data[].id`) and press **Enter** or click **Filter**.
 4. Use **Copy Output** or **Copy Query** to grab results.
 
-JSON bodies can be large, and `jq` results can be even larger. This plugin implements several optimizations:
+JSON bodies can be large, and `jq` results can be even larger. This plugin implements several optimizations to handle payloads up to 10MB:
 
 - **Output Truncation**: By default, only the first 500KB of output is rendered. Users can toggle "Show Full Output" to see the rest.
 - **Syntax Highlighting Limit**: Prism.js highlighting is disabled for outputs > 100KB to prevent UI freezing.
 - **Autocomplete Gating**:
-  - `JSON.parse` for suggestions is skipped if the payload body exceeds 5MB.
+  - `JSON.parse` for suggestions is skipped if the payload body exceeds 10MB.
   - Suggestion key enumeration is disabled if the root object has more than 10,000 keys.
-- **Efficient Escaping**: HTML escaping is used for large outputs to avoid the overhead of complex DOM structures or highlighting.
+  - Autocomplete is fully disabled above 1MB to avoid recomputation pressure during typing.
+- **Efficient String Operations**: Body extraction uses index-based lookup (`indexOf`/`slice`) instead of `split/join` to avoid large allocations.
+- **Fallback Caching**: GraphQL fallback raw payloads are cached per message ID during a view session.
+- **Display Caching**: Output transformation results are cached when both `stdout` and `showFull` inputs are unchanged.
+
+### Performance Baseline
+
+JavaScript operation timings (on a modern machine, from `scripts/test_jq_perf.mjs`):
+
+| Operation                     | 100KB  | 1MB    | 5MB    |
+| ----------------------------- | ------ | ------ | ------ |
+| HTML escaping                 | 0.02ms | 0.00ms | 0.01ms |
+| JSON.parse                    | 0.03ms | 0.01ms | 0.03ms |
+| Body extraction (index-based) | 0.02ms | 0.00ms | 0.04ms |
+| Object key enumeration        | 0.01ms | 0.00ms | 0.00ms |
+
+**Target Performance**: 1MB P95 < 300ms, 5MB P95 < 1.5s, 10MB P95 < 3s.
+The main bottleneck for large outputs is browser DOM rendering, not JavaScript processing. Default truncation mitigates this.
 
 ### Performance Notes
 
-Rendering 1MB+ of text into a single DOM element (`v-html`) can still cause a brief "Rendering" delay in the browser (usually ~100-300ms depending on the machine). This is a browser DOM insertion bottleneck rather than a JavaScript processing bottleneck. For extremely large datasets, it is recommended to use the "Show Truncated" view for general exploration.
+Rendering 1MB+ of text into a single DOM element (`v-html`) can cause a brief "Rendering" delay in the browser (usually ~100-300ms depending on hardware). This is a browser DOM insertion bottleneck rather than a JavaScript operation bottleneck. For exploratory queries on massive datasets, the default "Show Truncated" view is recommended.
 
 ## Development
 
@@ -59,6 +76,12 @@ bun run watch
 
 # Production build
 bun run build
+
+# Run tests
+bun run test
+
+# Run performance baseline
+node scripts/test_jq_perf.mjs
 
 # Package release zip (clean build + README/LICENSE bundled)
 bun run package

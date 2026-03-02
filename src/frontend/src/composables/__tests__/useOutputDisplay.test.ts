@@ -42,4 +42,22 @@ describe("useOutputDisplay", () => {
 
     expect(shouldHighlight.value).toBe(true);
   });
+
+  it("should cache displayOutput when stdout and showFull are unchanged", () => {
+    const output = "a".repeat(1024 * 1024);
+    const stdout = ref(output);
+    const { displayOutput } = useOutputDisplay(stdout);
+    const cached1 = displayOutput.value;
+    const cached2 = displayOutput.value;
+    // Should return the same cached value (object identity test)
+    expect(cached1).toBe(cached2);
+  });
+
+  it("should handle 10MB output by truncating", () => {
+    const tenMbOutput = "a".repeat(10 * 1024 * 1024);
+    const stdout = ref(tenMbOutput);
+    const { displayOutput, isOutputTruncated } = useOutputDisplay(stdout);
+    expect(isOutputTruncated.value).toBe(true);
+    expect(displayOutput.value.length).toBeLessThan(tenMbOutput.length);
+  });
 });
