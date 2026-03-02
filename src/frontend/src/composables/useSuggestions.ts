@@ -9,6 +9,7 @@ export function useSuggestions(
   const showSuggestions = ref(false);
   const selectedIndex = ref(0);
   const suggestions = ref<Suggestion[]>([]);
+  const tooLargeForSuggestions = ref(false);
 
   const isTooLargeForSuggestions = (json: unknown): boolean => {
     if (json == null) return false;
@@ -28,7 +29,7 @@ export function useSuggestions(
       return;
     }
 
-    if (isTooLargeForSuggestions(rootJson.value)) {
+    if (tooLargeForSuggestions.value) {
       suggestions.value = [];
       return;
     }
@@ -37,6 +38,8 @@ export function useSuggestions(
     if (selectedIndex.value >= suggestions.value.length) selectedIndex.value = 0;
   };
 
+  tooLargeForSuggestions.value = isTooLargeForSuggestions(rootJson.value);
+
   updateSuggestions(); // initialize
 
   watch(() => modelValue.value, () => {
@@ -44,6 +47,7 @@ export function useSuggestions(
   });
 
   watch(() => rootJson.value, () => {
+    tooLargeForSuggestions.value = isTooLargeForSuggestions(rootJson.value);
     updateSuggestions();
   });
 

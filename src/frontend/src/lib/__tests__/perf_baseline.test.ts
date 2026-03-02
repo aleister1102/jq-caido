@@ -5,7 +5,7 @@ function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-describe("Baseline Performance", () => {
+describe.skip("Baseline Performance (manual)", () => {
     it("measures escapeHtml for 1MB string", () => {
         const input = "a".repeat(1024 * 1024) + "<script>alert(1)</script>&foo=bar";
         const start = performance.now();

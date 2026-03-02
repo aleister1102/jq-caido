@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useSettings } from "../composables/useSettings";
 import { useRawPayload, type PropsShape } from "../composables/useRawPayload";
 import { useJqRunner } from "../composables/useJqRunner";
@@ -122,6 +122,17 @@ watch([isCompact, isRaw, keysOnly, filterNulls], () => {
 
 onMounted(() => {
   void executeJq();
+});
+
+onUnmounted(() => {
+  if (queryCopiedTimeout) {
+    clearTimeout(queryCopiedTimeout);
+    queryCopiedTimeout = null;
+  }
+  if (outputCopiedTimeout) {
+    clearTimeout(outputCopiedTimeout);
+    outputCopiedTimeout = null;
+  }
 });
 </script>
 

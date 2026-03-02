@@ -4,6 +4,8 @@ import "prismjs/components/prism-json";
 
 const MAX_HIGHLIGHT = 102400; // 100KB
 const MAX_DISPLAY = 512000; // 500KB
+declare const __JQ_DEBUG__: boolean;
+const isDebug = typeof __JQ_DEBUG__ !== "undefined" && __JQ_DEBUG__;
 
 function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -29,7 +31,7 @@ export function useOutputDisplay(stdout: Ref<string>) {
       catch { result = escapeHtml(val); }
     }
     const end = performance.now();
-    if (val.length > 500_000) {
+    if (isDebug && val.length > 500_000) {
       console.debug(`[JQ] displayOutput computed in ${(end - start).toFixed(2)}ms for ${val.length} chars`);
     }
     return result;

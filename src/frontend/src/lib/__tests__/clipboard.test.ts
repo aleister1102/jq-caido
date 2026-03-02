@@ -7,7 +7,7 @@ describe("clipboard", () => {
   });
 
   afterEach(() => {
-    vi.clearAllMocks();
+    vi.restoreAllMocks();
   });
 
   it("returns true on successful clipboard write", async () => {
@@ -32,17 +32,17 @@ describe("clipboard", () => {
       configurable: true,
     });
 
-    // Mock document.execCommand to return false
     const originalExecCommand = document.execCommand;
-    document.execCommand = vi.fn().mockReturnValue(false);
     vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      document.execCommand = vi.fn().mockReturnValue(false);
 
-    const result = await copyToClipboard("test text");
+      const result = await copyToClipboard("test text");
 
-    expect(result).toBe(false);
-    
-    // Restore original
-    (document.execCommand as any) = originalExecCommand;
+      expect(result).toBe(false);
+    } finally {
+      document.execCommand = originalExecCommand;
+    }
   });
 
   it("returns true on successful fallback execCommand", async () => {
@@ -53,16 +53,16 @@ describe("clipboard", () => {
       configurable: true,
     });
 
-    // Mock document.execCommand to return true
     const originalExecCommand = document.execCommand;
-    document.execCommand = vi.fn().mockReturnValue(true);
+    try {
+      document.execCommand = vi.fn().mockReturnValue(true);
 
-    const result = await copyToClipboard("test text");
+      const result = await copyToClipboard("test text");
 
-    expect(result).toBe(true);
-    
-    // Restore original
-    (document.execCommand as any) = originalExecCommand;
+      expect(result).toBe(true);
+    } finally {
+      document.execCommand = originalExecCommand;
+    }
   });
 });
 
