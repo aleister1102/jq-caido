@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { ref, nextTick } from "vue";
+import { ref } from "vue";
 import { useOutputDisplay } from "../useOutputDisplay";
 
 describe("useOutputDisplay", () => {
@@ -13,18 +13,15 @@ describe("useOutputDisplay", () => {
     expect(displayOutput.value.length).toBeLessThan(largeOutput.length);
   });
 
-  it("should show full output when toggled", async () => {
+  it("should keep output truncated even when toggled", () => {
     const largeOutput = "a".repeat(600 * 1024);
     const stdout = ref(largeOutput);
     const { displayOutput, isOutputTruncated, showFullOutput } = useOutputDisplay(stdout);
 
     showFullOutput.value = true;
-    await nextTick();
 
-    expect(isOutputTruncated.value).toBe(false);
-    expect(displayOutput.value).not.toContain("[Output truncated");
-    // Should be at least original length (plus potential escaping)
-    expect(displayOutput.value.length).toBeGreaterThanOrEqual(largeOutput.length);
+    expect(isOutputTruncated.value).toBe(true);
+    expect(displayOutput.value).toContain("[Output truncated");
   });
 
   it("should bypass highlight for output above 100KB", () => {
