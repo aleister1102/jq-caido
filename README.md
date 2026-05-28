@@ -8,7 +8,7 @@ Inspired by [burp-jq](https://github.com/synacktiv/burp-jq) (Synacktiv).
 
 - **Real `jq` queries** powered by [jq-wasm](https://github.com/owenthereal/jq-wasm).
 - **Autocomplete** based on your JSON structure (supports nested objects, arrays, and `[]` iterators).
-- **Syntax highlighting** via [Prism.js](https://prismjs.com/).
+- **Syntax highlighting** via [Prism.js](https://prismjs.com/) (instant for small output; lazy-loaded in chunks for large results up to the 500 KB display cap).
 - **Quick filters**: Compact (`-c`), Raw (`-r`), Keys-only, and Null removal toggles.
 - **Large payload support**: optimized for 20 MB+ JSON with smart truncation and debouncing.
 
@@ -20,6 +20,20 @@ Inspired by [burp-jq](https://github.com/synacktiv/burp-jq) (Synacktiv).
 > |---|---|
 > | `jq.raw(Object)` | ~648,891 ms |
 > | `jq.raw(String)` | **~8.27 ms** |
+
+## Relationship to [Panes](https://github.com/caido-community/Panes)
+
+Caido's official **Panes** plugin can add custom HTTP tabs via shell commands or workflows. Its built-in jq template runs host `jq .` (fixed query, backend subprocess).
+
+|            | Panes shell jq | This plugin (jq-caido)                   |
+| ---------- | -------------- | ---------------------------------------- |
+| Engine     | Host `jq`      | Browser **jq-wasm**                      |
+| UX         | Passive output | Interactive query, autocomplete, toggles |
+| Search tab | No             | Yes                                      |
+
+You can import a shell-only pane preset into Panes from [`exports/jq-shell.panes.json`](exports/jq-shell.panes.json) (Panes UI: Import). If both plugins are enabled, you may see duplicate **jq** tabs on History/Replay/Sitemap.
+
+**Deprecation:** Interactive jq lives in the personal [caido-panes](https://github.com/aleister1102/caido-panes) fork (Panes + jq-wasm). Install that plugin or import `exports/jq-interactive.panes.json` from that repo into Panes. This standalone plugin remains useful for the **Search** tab and minimal installs.
 
 ## Installation
 
