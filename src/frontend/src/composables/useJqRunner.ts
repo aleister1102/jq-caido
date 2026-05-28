@@ -1,6 +1,10 @@
 import { ref, onUnmounted, watch, type Ref, type ComputedRef } from "vue";
 import { runJq } from "../lib/runJq";
-import { OVERSIZED_PAYLOAD_BYTES, LARGE_PAYLOAD_THRESHOLD_BYTES } from "./useRawPayload";
+import {
+  FILTER_NULLS_MAX_BYTES,
+  LARGE_PAYLOAD_THRESHOLD_BYTES,
+  OVERSIZED_PAYLOAD_BYTES,
+} from "./useRawPayload";
 
 export function useJqRunner(
   bodyText: ComputedRef<string>,
@@ -59,7 +63,9 @@ export function useJqRunner(
     if (keysOnly.value) {
       effectiveQuery = `(${effectiveQuery}) | keys`;
     }
-    if (filterNulls.value && !isLargePayload.value) {
+    const bodyLen = jsonBody.length;
+    const nullsWalkOk = bodyLen <= FILTER_NULLS_MAX_BYTES;
+    if (filterNulls.value && nullsWalkOk) {
       effectiveQuery = `(${effectiveQuery}) | walk(if type == "object" then with_entries(select(.value != null)) else . end)`;
     }
 
@@ -73,9 +79,10 @@ export function useJqRunner(
         result.stderr ||
         (result.timedOut ? "Error: jq-wasm timed out (likely wasm failed to load in Caido)" : "") ||
         (result.exitCode !== 0 ? `Error: jq exited with code ${result.exitCode}` : "");
-      const nullsDisabledWarning = filterNulls.value && isLargePayload.value
-        ? `Warning: No Nulls is disabled for payloads over ${Math.round(LARGE_PAYLOAD_THRESHOLD_BYTES / 1_000_000)} MB.`
-        : "";
+      const nullsDisabledWarning =
+        filterNulls.value && !nullsWalkOk
+          ? `Warning: No Nulls (walk) is disabled for payloads over ${Math.round(FILTER_NULLS_MAX_BYTES / 1_000_000)} MB — it is too slow in jq-wasm.`
+          : "";
       stderr.value = [runnerError, nullsDisabledWarning].filter(Boolean).join("\n");
     } finally {
       if (thisGen === generation) isLoading.value = false;

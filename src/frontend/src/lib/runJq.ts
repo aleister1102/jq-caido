@@ -22,12 +22,17 @@ let taskIdCounter = 0;
 const decoder = new TextDecoder();
 const encoder = new TextEncoder();
 
-function computeTimeout(byteLength: number): number {
-  const BASE_MS = 5_000;
-  const PER_MB_MS = 2_000;
-  const MAX_MS = 120_000;
+/** Exported for tests. */
+export function computeJqTimeout(byteLength: number, query: string): number {
+  const BASE_MS = 15_000;
+  const PER_MB_MS = 8_000;
+  const MAX_MS = 300_000;
   const mb = byteLength / (1024 * 1024);
-  return Math.min(MAX_MS, BASE_MS + Math.ceil(mb) * PER_MB_MS);
+  let ms = BASE_MS + Math.ceil(mb) * PER_MB_MS;
+  if (query.includes("walk(")) {
+    ms += 20_000 + Math.ceil(mb) * 25_000;
+  }
+  return Math.min(MAX_MS, ms);
 }
 
 function attachWorkerHandlers(w: Worker): void {
@@ -123,7 +128,7 @@ export async function runJq(json: string, query: string, flags: string[] = []): 
     const id = taskIdCounter;
 
     const jsonBytes = encoder.encode(json);
-    const ms = computeTimeout(jsonBytes.byteLength);
+    const ms = computeJqTimeout(jsonBytes.byteLength, query);
 
     currentTask = {
       id,
@@ -134,10 +139,11 @@ export async function runJq(json: string, query: string, flags: string[] = []): 
       },
       timer: setTimeout(() => {
         if (currentTask?.id === id) {
-          worker?.terminate();
-          worker = null;
-          workerInit = null;
-          currentTask.reject(new Error(`jq-wasm timed out after ${ms}ms`));
+          currentTask.reject(
+            new Error(
+              `jq-wasm timed out after ${Math.round(ms / 1000)}s (${Math.round(jsonBytes.byteLength / 1024)} KB input). Try a simpler query or disable No Nulls.`,
+            ),
+          );
           currentTask = null;
         }
       }, ms),
