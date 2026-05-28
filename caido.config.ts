@@ -17,12 +17,22 @@ export default defineConfig({
       id: "jq-frontend",
       name: "JQ Viewer",
       root: "./src/frontend",
+      // jq-wasm worker chunk (stable name via vite.worker.rollupOptions below).
+      assets: ["./src/frontend/dist/jq.worker.js"],
       vite: {
         plugins: [vue()],
         // Prevent jq-wasm from thinking it's running in Node when Caido exposes `process.versions.node`.
         // This keeps jq-wasm on the browser/XHR/fetch path instead of trying to use `fs`.
         define: {
           "process.type": "\"renderer\"",
+        },
+        worker: {
+          format: "iife",
+          rollupOptions: {
+            output: {
+              entryFileNames: "jq.worker.js",
+            },
+          },
         },
         build: {
           rollupOptions: {

@@ -1,11 +1,9 @@
 import { ref, onUnmounted, watch, type Ref, type ComputedRef } from "vue";
-import { extractJsonBodyString } from "../lib/extractJsonBody";
 import { runJq } from "../lib/runJq";
-import { OVERSIZED_PAYLOAD_BYTES } from "./useRawPayload";
+import { OVERSIZED_PAYLOAD_BYTES, LARGE_PAYLOAD_THRESHOLD_BYTES } from "./useRawPayload";
 
 export function useJqRunner(
-  rawInfo: ComputedRef<{ raw: string; source: string }>,
-  selectedIds: ComputedRef<{ requestId: string | null; responseId: string | null }>,
+  bodyText: ComputedRef<string>,
   query: Ref<string>,
   isCompact: Ref<boolean>,
   isRaw: Ref<boolean>,
@@ -22,39 +20,32 @@ export function useJqRunner(
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
   let generation = 0;
 
+  const debounceMs = () => {
+    const len = bodyText.value.length;
+    if (len > LARGE_PAYLOAD_THRESHOLD_BYTES) return 800;
+    if (len > 10_000_000) return 500;
+    return 300;
+  };
+
   const executeJq = async () => {
     const thisGen = ++generation;
-    const raw = rawInfo.value.raw;
 
     stderr.value = "";
-
-    if (!raw) {
-      stdout.value = "";
-      stderr.value = "Error: No raw content provided to this view mode.";
-      if (thisGen === generation) {
-        isLoading.value = false;
-      }
-      return;
-    }
 
     if (isOversized.value) {
       stdout.value = "";
       clearParsedJson();
-      stderr.value = `Payload too large (> ${Math.round(OVERSIZED_PAYLOAD_BYTES / 1000)} KB) — jq is disabled to prevent UI freeze. Reduce payload size to enable jq processing.`;
-      if (thisGen === generation) {
-        isLoading.value = false;
-      }
+      stderr.value = `Payload too large (> ${Math.round(OVERSIZED_PAYLOAD_BYTES / 1_000_000)} MB) — jq is disabled to prevent UI freeze.`;
+      if (thisGen === generation) isLoading.value = false;
       return;
     }
 
-    const jsonBody = extractJsonBodyString(raw);
+    const jsonBody = bodyText.value;
     if (!jsonBody) {
       stdout.value = "";
       clearParsedJson();
-      stderr.value = "Error: No JSON body found in the selected message.";
-      if (thisGen === generation) {
-        isLoading.value = false;
-      }
+      stderr.value = "Error: No content provided to this view mode.";
+      if (thisGen === generation) isLoading.value = false;
       return;
     }
 
@@ -75,7 +66,7 @@ export function useJqRunner(
     try {
       const result = await runJq(jsonBody, effectiveQuery, flags);
 
-      if (thisGen !== generation) return; // stale, discard
+      if (thisGen !== generation) return;
 
       stdout.value = result.stdout;
       const runnerError =
@@ -83,30 +74,26 @@ export function useJqRunner(
         (result.timedOut ? "Error: jq-wasm timed out (likely wasm failed to load in Caido)" : "") ||
         (result.exitCode !== 0 ? `Error: jq exited with code ${result.exitCode}` : "");
       const nullsDisabledWarning = filterNulls.value && isLargePayload.value
-        ? "Warning: No Nulls is disabled for payloads over 10 MB."
+        ? `Warning: No Nulls is disabled for payloads over ${Math.round(LARGE_PAYLOAD_THRESHOLD_BYTES / 1_000_000)} MB.`
         : "";
       stderr.value = [runnerError, nullsDisabledWarning].filter(Boolean).join("\n");
     } finally {
-      if (thisGen === generation) {
-        isLoading.value = false;
-      }
+      if (thisGen === generation) isLoading.value = false;
     }
   };
 
   const executeJqDebounced = () => {
-    if (debounceTimer) {
-      clearTimeout(debounceTimer);
-    }
+    if (debounceTimer) clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => {
       void executeJq();
-    }, 300);
+    }, debounceMs());
   };
 
   onUnmounted(() => {
     if (debounceTimer) clearTimeout(debounceTimer);
   });
 
-  watch([() => rawInfo.value.raw, isCompact, isRaw, keysOnly, filterNulls], () => {
+  watch([bodyText, isCompact, isRaw, keysOnly, filterNulls], () => {
     void executeJq();
   });
 
