@@ -1,8 +1,8 @@
 import { computed, ref, type ComputedRef } from "vue";
 import { extractJsonBodyString } from "../lib/extractJsonBody";
 
-export const OVERSIZED_PAYLOAD_BYTES = 300_000;
-const LARGE_PAYLOAD_THRESHOLD_BYTES = 10_000_000;
+export const OVERSIZED_PAYLOAD_BYTES = 50_000_000;
+export const LARGE_PAYLOAD_THRESHOLD_BYTES = 25_000_000;
 
 export type RawCarrier = { raw?: string; id?: string } | undefined;
 
