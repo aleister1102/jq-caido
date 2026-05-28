@@ -1,7 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useSettings } from "../composables/useSettings";
-import { useRawPayload, type PropsShape } from "../composables/useRawPayload";
+import {
+  useRawPayload,
+  type PropsShape,
+  LARGE_PAYLOAD_THRESHOLD_BYTES,
+} from "../composables/useRawPayload";
 import { useJqRunner } from "../composables/useJqRunner";
 import { useOutputDisplay } from "../composables/useOutputDisplay";
 import { copyToClipboard } from "../lib/clipboard";
@@ -10,14 +14,8 @@ import JqOutputPanel from "../components/JqOutputPanel.vue";
 
 const props = defineProps<PropsShape>();
 
-const {
-  isCompact,
-  isRaw,
-  keysOnly,
-  filterNulls,
-  loadSettings,
-  saveSettings,
-} = useSettings();
+const { isCompact, isRaw, keysOnly, filterNulls, loadSettings, saveSettings } =
+  useSettings();
 
 // Query is intentionally not persisted — always starts fresh with the identity filter.
 const query = ref(".");
@@ -26,8 +24,6 @@ const query = ref(".");
 loadSettings();
 
 const {
-  rawInfo,
-  selectedIds,
   bodyText,
   parsedJson,
   isOversized,
@@ -43,8 +39,7 @@ const {
   isLoading,
   executeJq: executeJqInternal,
 } = useJqRunner(
-  rawInfo,
-  selectedIds,
+  bodyText,
   query,
   isCompact,
   isRaw,
@@ -57,7 +52,7 @@ const {
 
 const noNullsWarning = computed(() => {
   if (!filterNulls.value || !isLargePayload.value) return "";
-  return "No Nulls is disabled for payloads over 10 MB to keep queries responsive.";
+  return `No Nulls is disabled for payloads over ${Math.round(LARGE_PAYLOAD_THRESHOLD_BYTES / 1_000_000)} MB to keep queries responsive.`;
 });
 
 const outputDisplay = useOutputDisplay(stdout);
@@ -99,9 +94,12 @@ const requestAutocomplete = () => {
   ensureParsedJson();
 };
 
-watch(() => bodyText.value, () => {
-  clearParsedJson();
-});
+watch(
+  () => bodyText.value,
+  () => {
+    clearParsedJson();
+  },
+);
 
 // Save settings only when the persisted flags change
 watch([isCompact, isRaw, keysOnly, filterNulls], () => {
@@ -145,19 +143,35 @@ onUnmounted(() => {
            Older versions had binding issues requiring explicit :checked + @change;
            revert to that pattern if a future SDK update breaks two-way binding. -->
       <label class="flex items-center gap-2 text-xs cursor-pointer select-none">
-        <input type="checkbox" v-model="isCompact" class="rounded bg-transparent border-white/10" />
+        <input
+          type="checkbox"
+          v-model="isCompact"
+          class="rounded bg-transparent border-white/10"
+        />
         Compact
       </label>
       <label class="flex items-center gap-2 text-xs cursor-pointer select-none">
-        <input type="checkbox" v-model="isRaw" class="rounded bg-transparent border-white/10" />
+        <input
+          type="checkbox"
+          v-model="isRaw"
+          class="rounded bg-transparent border-white/10"
+        />
         Raw
       </label>
       <label class="flex items-center gap-2 text-xs cursor-pointer select-none">
-        <input type="checkbox" v-model="keysOnly" class="rounded bg-transparent border-white/10" />
+        <input
+          type="checkbox"
+          v-model="keysOnly"
+          class="rounded bg-transparent border-white/10"
+        />
         Keys
       </label>
       <label class="flex items-center gap-2 text-xs cursor-pointer select-none">
-        <input type="checkbox" v-model="filterNulls" class="rounded bg-transparent border-white/10" />
+        <input
+          type="checkbox"
+          v-model="filterNulls"
+          class="rounded bg-transparent border-white/10"
+        />
         No Nulls
       </label>
     </div>
@@ -167,7 +181,10 @@ onUnmounted(() => {
     </div>
 
     <div class="flex-1 flex flex-col min-h-0 gap-2">
-      <div v-if="stderr" class="p-3 bg-red-900/20 border border-red-500/30 rounded text-red-200 text-xs font-mono whitespace-pre-wrap overflow-auto max-h-32">
+      <div
+        v-if="stderr"
+        class="p-3 bg-red-900/20 border border-red-500/30 rounded text-red-200 text-xs font-mono whitespace-pre-wrap overflow-auto max-h-32"
+      >
         {{ stderr }}
       </div>
 
@@ -175,6 +192,7 @@ onUnmounted(() => {
         :stdout="stdout"
         :displayOutput="outputDisplay.displayOutput.value"
         :shouldHighlight="outputDisplay.shouldHighlight.value"
+        :isHighlighting="outputDisplay.isHighlighting.value"
         :isOutputTruncated="outputDisplay.isOutputTruncated.value"
         :isLoading="isLoading"
         :outputCopied="outputCopied"

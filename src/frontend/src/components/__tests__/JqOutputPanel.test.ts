@@ -9,6 +9,7 @@ describe("JqOutputPanel", () => {
                 stdout: "a".repeat(600 * 1024),
                 displayOutput: "truncated info",
                 shouldHighlight: false,
+                isHighlighting: false,
                 isOutputTruncated: true,
                 isLoading: false,
                 outputCopied: false,
@@ -18,7 +19,7 @@ describe("JqOutputPanel", () => {
         expect(wrapper.text()).not.toContain("Show Full Output");
         // v-html content rendering in tests can be environment-specific
         // Check that component accepts the prop without error
-        expect(wrapper.props("displayOutput")).toBe("truncated info");
+        expect((wrapper.props() as any).displayOutput).toBe("truncated info");
     });
 
     it("renders 'Copy Output' button when stdout is present", () => {
@@ -27,6 +28,7 @@ describe("JqOutputPanel", () => {
                 stdout: "output text",
                 displayOutput: "output text",
                 shouldHighlight: false,
+                isHighlighting: false,
                 isOutputTruncated: false,
                 isLoading: false,
                 outputCopied: false,
@@ -42,6 +44,7 @@ describe("JqOutputPanel", () => {
                 stdout: "output text",
                 displayOutput: "output text",
                 shouldHighlight: false,
+                isHighlighting: false,
                 isOutputTruncated: false,
                 isLoading: false,
                 outputCopied: true,
@@ -58,6 +61,7 @@ describe("JqOutputPanel", () => {
                 stdout: "output text",
                 displayOutput: "output text",
                 shouldHighlight: false,
+                isHighlighting: false,
                 isOutputTruncated: false,
                 isLoading: false,
                 outputCopied: false,

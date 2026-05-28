@@ -1,47 +1,100 @@
-import { computed, ref, watch, type Ref } from "vue";
-import Prism from "prismjs";
-import "prismjs/components/prism-json";
+import { computed, onScopeDispose, ref, watch, type Ref } from "vue";
 
-const MAX_HIGHLIGHT = 102400; // 100KB
-const MAX_DISPLAY = 512000; // 500KB
+import {
+  escapeHtml,
+  highlightJsonLazy,
+  MAX_HIGHLIGHT_SYNC,
+} from "../lib/highlightJson";
+
+export const MAX_DISPLAY = 512_000;
+
 declare const __JQ_DEBUG__: boolean;
 const isDebug = typeof __JQ_DEBUG__ !== "undefined" && __JQ_DEBUG__;
 
-function escapeHtml(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+function buildViewParts(val: string): { body: string; suffix: string } {
+  if (val.length <= MAX_DISPLAY) {
+    return { body: val, suffix: "" };
+  }
+  const body = val.slice(0, MAX_DISPLAY);
+  const suffix = `\n\n[Output truncated - ${((val.length - MAX_DISPLAY) / 1024).toFixed(1)} KB more.]`;
+  return { body, suffix };
 }
 
 export function useOutputDisplay(stdout: Ref<string>) {
   const showFullOutput = ref(false);
+  const displayOutput = ref("");
+  const shouldHighlight = ref(false);
+  const isHighlighting = ref(false);
 
-  const shouldHighlight = computed(() => !!stdout.value && stdout.value.length <= MAX_HIGHLIGHT);
+  let abortController: AbortController | null = null;
 
-  const displayOutput = computed(() => {
-    const val = stdout.value;
-    if (!val) return "";
+  const isOutputTruncated = computed(
+    () => !!stdout.value && stdout.value.length > MAX_DISPLAY,
+  );
+
+  const scheduleHighlight = async (val: string) => {
+    abortController?.abort();
+    const ac = new AbortController();
+    abortController = ac;
+    const { signal } = ac;
+
+    if (!val) {
+      displayOutput.value = "";
+      shouldHighlight.value = false;
+      isHighlighting.value = false;
+      return;
+    }
+
+    const { body, suffix } = buildViewParts(val);
+    const suffixHtml = suffix ? escapeHtml(suffix) : "";
+    const plainBody = escapeHtml(body);
+
+    displayOutput.value = plainBody + suffixHtml;
+    shouldHighlight.value = true;
+    isHighlighting.value = body.length > MAX_HIGHLIGHT_SYNC;
+
     const start = performance.now();
-    let result = "";
-    if (val.length > MAX_DISPLAY) {
-      result = escapeHtml(val.slice(0, MAX_DISPLAY))
-        + escapeHtml(`\n\n[Output truncated - ${((val.length - MAX_DISPLAY) / 1024).toFixed(1)} KB more.]`);
-    } else if (val.length > MAX_HIGHLIGHT) {
-      result = escapeHtml(val);
-    } else {
-      try { result = Prism.highlight(val, Prism.languages.json, "json"); }
-      catch { result = escapeHtml(val); }
-    }
-    const end = performance.now();
-    if (isDebug && val.length > 500_000) {
-      console.debug(`[JQ] displayOutput computed in ${(end - start).toFixed(2)}ms for ${val.length} chars`);
-    }
-    return result;
-  });
 
-  const isOutputTruncated = computed(() => !!stdout.value && stdout.value.length > MAX_DISPLAY);
+    try {
+      const highlightedBody = await highlightJsonLazy(
+        body,
+        (partial) => {
+          if (!signal.aborted) {
+            displayOutput.value = partial + suffixHtml;
+          }
+        },
+        signal,
+      );
+      if (!signal.aborted) {
+        displayOutput.value = highlightedBody + suffixHtml;
+      }
+    } catch (err) {
+      if (signal.aborted || (err instanceof DOMException && err.name === "AbortError")) {
+        return;
+      }
+      displayOutput.value = plainBody + suffixHtml;
+    } finally {
+      if (!signal.aborted) {
+        isHighlighting.value = false;
+      }
+      if (isDebug && body.length > 500_000) {
+        console.debug(
+          `[JQ] highlight finished in ${(performance.now() - start).toFixed(2)}ms for ${body.length} chars`,
+        );
+      }
+    }
+  };
 
-  // Auto-reset when new output arrives so truncation is re-applied for large results.
+  watch(stdout, (val) => {
+    void scheduleHighlight(val);
+  }, { immediate: true });
+
   watch(stdout, () => {
     showFullOutput.value = false;
+  });
+
+  onScopeDispose(() => {
+    abortController?.abort();
   });
 
   const resetFullOutput = () => {
@@ -51,6 +104,7 @@ export function useOutputDisplay(stdout: Ref<string>) {
   return {
     showFullOutput,
     shouldHighlight,
+    isHighlighting,
     displayOutput,
     isOutputTruncated,
     resetFullOutput,
