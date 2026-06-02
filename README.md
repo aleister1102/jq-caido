@@ -74,7 +74,7 @@ bun run package
 
 ## Releasing
 
-1. Bump `version` in both `package.json` and `manifest.json`.
+1. Bump `version` in `package.json`, `manifest.json`, and `caido.config.ts`.
 2. Commit and push to `main`.
 3. Go to **Actions** > **Release** > **Run workflow** (on `main` branch).
 4. GitHub Actions builds, signs, and publishes an immutable release tagged with the version from `manifest.json`.
