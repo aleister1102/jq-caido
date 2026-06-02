@@ -35,6 +35,12 @@ export function computeJqTimeout(byteLength: number, query: string): number {
   return Math.min(MAX_MS, ms);
 }
 
+function resetWorker(): void {
+  worker?.terminate();
+  worker = null;
+  workerInit = null;
+}
+
 function attachWorkerHandlers(w: Worker): void {
   w.onmessage = (e: MessageEvent) => {
     if (!currentTask) return;
@@ -51,12 +57,12 @@ function attachWorkerHandlers(w: Worker): void {
     currentTask = null;
   };
   w.onerror = (e: ErrorEvent) => {
-    if (!currentTask) return;
-    clearTimeout(currentTask.timer);
-    currentTask.reject(new Error("Worker error: " + e.message));
-    currentTask = null;
-    worker?.terminate();
-    worker = null;
+    if (currentTask) {
+      clearTimeout(currentTask.timer);
+      currentTask.reject(new Error("Worker error: " + e.message));
+      currentTask = null;
+    }
+    resetWorker();
   };
 }
 
@@ -145,6 +151,7 @@ export async function runJq(json: string, query: string, flags: string[] = []): 
             ),
           );
           currentTask = null;
+          resetWorker();
         }
       }, ms),
     };
