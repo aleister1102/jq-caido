@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "exportDate": 0,
+  "panes": [
+    {
+      "name": "jq - JSON Processor (shell)",
+      "tabName": "jq",
+      "description": "Process and format JSON using host jq (jq .). Requires jq on the Caido backend PATH. For interactive jq-wasm, use the jq-caido plugin instead.",
+      "enabled": false,
+      "scope": "global",
+      "input": "response.body",
+      "locations": ["http-history", "replay", "sitemap", "automate", "intercept"],
+      "transformation": {
+        "type": "command",
+        "command": "jq .",
+        "timeout": 30
+      },
+      "codeBlock": true,
+      "language": "json",
+      "templateId": "jq"
+    }
+  ]
+}

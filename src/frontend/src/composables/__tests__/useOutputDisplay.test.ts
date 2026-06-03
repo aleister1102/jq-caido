@@ -1,42 +1,59 @@
-import { describe, it, expect } from "vitest";
-import { ref } from "vue";
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { effectScope, ref, nextTick } from "vue";
 import { useOutputDisplay } from "../useOutputDisplay";
 
 describe("useOutputDisplay", () => {
-  it("should truncate output above 500KB by default", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("should truncate output above 500KB by default", async () => {
+    const scope = effectScope();
     const largeOutput = "a".repeat(600 * 1024);
     const stdout = ref(largeOutput);
-    const { displayOutput, isOutputTruncated } = useOutputDisplay(stdout);
+    const { displayOutput, isOutputTruncated } = scope.run(() => useOutputDisplay(stdout))!;
+
+    await vi.waitFor(() => {
+      expect(displayOutput.value).toContain("[Output truncated");
+    });
 
     expect(isOutputTruncated.value).toBe(true);
-    expect(displayOutput.value).toContain("[Output truncated");
     expect(displayOutput.value.length).toBeLessThan(largeOutput.length);
+    scope.stop();
   });
 
-  it("should keep output truncated even when toggled", () => {
-    const largeOutput = "a".repeat(600 * 1024);
-    const stdout = ref(largeOutput);
-    const { displayOutput, isOutputTruncated, showFullOutput } = useOutputDisplay(stdout);
+  it("should enable highlight for small output", async () => {
+    const scope = effectScope();
+    const stdout = ref('{"foo": "bar"}');
+    const { shouldHighlight, isHighlighting, displayOutput } = scope.run(() =>
+      useOutputDisplay(stdout),
+    )!;
 
-    showFullOutput.value = true;
-
-    expect(isOutputTruncated.value).toBe(true);
-    expect(displayOutput.value).toContain("[Output truncated");
-  });
-
-  it("should bypass highlight for output above 100KB", () => {
-    const midOutput = "a".repeat(150 * 1024);
-    const stdout = ref(midOutput);
-    const { shouldHighlight } = useOutputDisplay(stdout);
-
-    expect(shouldHighlight.value).toBe(false);
-  });
-
-  it("should enable highlight for output below 100KB", () => {
-    const smallOutput = '{"foo": "bar"}';
-    const stdout = ref(smallOutput);
-    const { shouldHighlight } = useOutputDisplay(stdout);
+    await nextTick();
 
     expect(shouldHighlight.value).toBe(true);
+    expect(isHighlighting.value).toBe(false);
+    expect(displayOutput.value).toContain("token");
+    scope.stop();
+  });
+
+  it("should lazy-highlight output above 100KB", async () => {
+    const scope = effectScope();
+    const midOutput = `{"items":[${'"x",'.repeat(30_000)}"y"]}`;
+    expect(midOutput.length).toBeGreaterThan(100 * 1024);
+
+    const stdout = ref(midOutput);
+    const { shouldHighlight, displayOutput } = scope.run(() => useOutputDisplay(stdout))!;
+
+    await nextTick();
+    expect(shouldHighlight.value).toBe(true);
+
+    await vi.waitFor(
+      () => {
+        expect(displayOutput.value).toContain("token");
+      },
+      { timeout: 10_000 },
+    );
+    scope.stop();
   });
 });

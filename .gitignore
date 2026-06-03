@@ -1,5 +1,7 @@
 node_modules/
 dist/
+cache/
+large_test_data*.json
 *.pem
 *.sig
 .DS_Store
