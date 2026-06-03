@@ -41,8 +41,21 @@ function resetWorker(): void {
   workerInit = null;
 }
 
+function cancelCurrentTask(): void {
+  if (!currentTask) return;
+  clearTimeout(currentTask.timer);
+  currentTask.resolve({ stdout: "", stderr: "Cancelled", exitCode: 1 });
+  currentTask = null;
+  resetWorker();
+}
+
 function attachWorkerHandlers(w: Worker): void {
   w.onmessage = (e: MessageEvent) => {
+    if (e.data.id === 0) {
+      if (!e.data.success) resetWorker();
+      return;
+    }
+
     if (!currentTask) return;
     if (e.data.id !== currentTask.id) return;
 
@@ -99,7 +112,15 @@ async function ensureWorker(): Promise<Worker> {
   return workerInit;
 }
 
-/** Pre-warm WASM after Caido init (id 0 is ignored when no currentTask). */
+async function workerForNewTask(): Promise<Worker> {
+  for (;;) {
+    cancelCurrentTask();
+    const w = await ensureWorker();
+    if (!currentTask) return w;
+  }
+}
+
+/** Pre-warm WASM after Caido init (id 0 is handled separately from foreground tasks). */
 export function warmupJqWorker(): void {
   if (typeof Worker === "undefined") return;
   void ensureWorker()
@@ -116,7 +137,7 @@ export function warmupJqWorker(): void {
 export async function runJq(json: string, query: string, flags: string[] = []): Promise<JqResult> {
   let w: Worker;
   try {
-    w = await ensureWorker();
+    w = await workerForNewTask();
   } catch (err) {
     const message =
       err instanceof Error ? err.message : "Failed to start jq worker (rebuild and reinstall the plugin)";
@@ -124,12 +145,6 @@ export async function runJq(json: string, query: string, flags: string[] = []): 
   }
 
   return new Promise((resolve) => {
-    if (currentTask) {
-      clearTimeout(currentTask.timer);
-      currentTask.resolve({ stdout: "", stderr: "Cancelled", exitCode: 1 });
-      currentTask = null;
-    }
-
     taskIdCounter++;
     const id = taskIdCounter;
 
