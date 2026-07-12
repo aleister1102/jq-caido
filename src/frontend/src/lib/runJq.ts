@@ -7,6 +7,7 @@ import type {
 } from "../../../shared/jqContract";
 import {
   JQ_BROWSER_HOST,
+  JQ_NATIVE_AVAILABILITY_CACHE_TTL_MS,
   JQ_NATIVE_HOST,
   computeJqTimeout,
   shouldPreferNative,
@@ -17,7 +18,7 @@ import { getCaido } from "../caido";
 
 const WORKER_ASSET = "jq.worker.js";
 const NATIVE_CANCEL_WAIT_MS = 250;
-const NATIVE_UNAVAILABLE_RETRY_MS = 30_000;
+const NATIVE_RPC_WATCHDOG_GRACE_MS = 500;
 
 let worker: Worker | null = null;
 let workerInit: Promise<Worker> | null = null;
@@ -104,6 +105,20 @@ function resetWorker(): void {
   workerInit = null;
 }
 
+function requestNativeCancellation(taskId: string, caido: NonNullable<ReturnType<typeof getCaido>>): Promise<void> {
+  const cancellation = Promise.race([
+    caido.backend.cancelNativeJq(taskId).then(() => undefined).catch(() => undefined),
+    wait(NATIVE_CANCEL_WAIT_MS),
+  ]);
+  const pending = cancellation.finally(() => {
+    if (pendingNativeCancellation === pending) {
+      pendingNativeCancellation = null;
+    }
+  });
+  pendingNativeCancellation = pending;
+  return pendingNativeCancellation;
+}
+
 function finalizeTask(id: number, result: JqExecutionResult): void {
   if (!currentTask || currentTask.id !== id) {
     return;
@@ -136,17 +151,7 @@ export async function cancelActiveJqRun(): Promise<void> {
 
   const caido = getCaido();
   if (task.backendTaskId && caido) {
-    const cancellation = Promise.race([
-      caido.backend.cancelNativeJq(task.backendTaskId).then(() => undefined).catch(() => undefined),
-      wait(NATIVE_CANCEL_WAIT_MS),
-    ]);
-    const pending = cancellation.finally(() => {
-      if (pendingNativeCancellation === pending) {
-        pendingNativeCancellation = null;
-      }
-    });
-    pendingNativeCancellation = pending;
-    return pendingNativeCancellation;
+    return requestNativeCancellation(task.backendTaskId, caido);
   }
 }
 
@@ -248,8 +253,7 @@ function nativeUnavailable(reason: string): NativeJqAvailability {
 
 export async function getNativeJqAvailability(forceRefresh = false): Promise<NativeJqAvailability> {
   if (!forceRefresh && nativeAvailabilityCache) {
-    const cacheAge = Date.now() - nativeAvailabilityCacheAt;
-    if (nativeAvailabilityCache.available || cacheAge < NATIVE_UNAVAILABLE_RETRY_MS) {
+    if ((Date.now() - nativeAvailabilityCacheAt) < JQ_NATIVE_AVAILABILITY_CACHE_TTL_MS) {
       return nativeAvailabilityCache;
     }
   }
@@ -259,8 +263,8 @@ export async function getNativeJqAvailability(forceRefresh = false): Promise<Nat
 
   const shouldForceBackendRefresh =
     forceRefresh
-    || (nativeAvailabilityCache?.available === false
-      && (Date.now() - nativeAvailabilityCacheAt) >= NATIVE_UNAVAILABLE_RETRY_MS);
+    || (nativeAvailabilityCache !== null
+      && (Date.now() - nativeAvailabilityCacheAt) >= JQ_NATIVE_AVAILABILITY_CACHE_TTL_MS);
 
   const caido = getCaido();
   if (!caido || typeof caido.backend.nativeJqAvailability !== "function") {
@@ -386,12 +390,28 @@ async function runNativeJq(
     taskIdCounter++;
     const id = taskIdCounter;
     const backendTaskId = `jq-native-${id}`;
+    const timeoutMs = computeJqTimeout(inputBytes, query);
     currentTask = {
       id,
       engine: "native",
       inputBytes,
       backendTaskId,
       resolve,
+      timer: setTimeout(() => {
+        if (currentTask?.id !== id) {
+          return;
+        }
+        finalizeTask(
+          id,
+          createResult(
+            "native",
+            inputBytes,
+            `Native jq timed out after ${Math.round((timeoutMs + NATIVE_RPC_WATCHDOG_GRACE_MS) / 1000)}s (${Math.round(inputBytes / 1024)} KB input).`,
+            { timedOut: true },
+          ),
+        );
+        void requestNativeCancellation(backendTaskId, caido);
+      }, timeoutMs + NATIVE_RPC_WATCHDOG_GRACE_MS),
     };
 
     void caido.backend.runNativeJq({
@@ -400,7 +420,7 @@ async function runNativeJq(
       inputBytes,
       query,
       flags,
-      timeoutMs: computeJqTimeout(inputBytes, query),
+      timeoutMs,
     }).then((result) => {
       finalizeTask(id, result);
     }).catch((error) => {

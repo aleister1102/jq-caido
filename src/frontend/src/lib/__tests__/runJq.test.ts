@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { NativeJqAvailability } from "../../../../shared/jqContract";
+import { JQ_NATIVE_AVAILABILITY_CACHE_TTL_MS } from "../../../../shared/jqPolicy";
 
 type WorkerPlan =
   | { kind: "hang" }
@@ -267,6 +268,36 @@ describe("runJq", () => {
     expect(MockWorker.instances).toHaveLength(0);
   });
 
+  it("retries cached available native availability after the TTL", async () => {
+    const { getNativeJqAvailability, setCaido } = await loadRunJqModule();
+    const caido = createCaido({
+      available: true,
+      version: "jq-1.8.2",
+      reason: null,
+    });
+    setCaido(caido as never);
+
+    await expect(getNativeJqAvailability()).resolves.toMatchObject({
+      available: true,
+      version: "jq-1.8.2",
+    });
+    await expect(getNativeJqAvailability()).resolves.toMatchObject({
+      available: true,
+      version: "jq-1.8.2",
+    });
+
+    expect(caido.backend.nativeJqAvailability).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(JQ_NATIVE_AVAILABILITY_CACHE_TTL_MS);
+    await expect(getNativeJqAvailability()).resolves.toMatchObject({
+      available: true,
+      version: "jq-1.8.2",
+    });
+
+    expect(caido.backend.nativeJqAvailability).toHaveBeenCalledTimes(2);
+    expect(caido.backend.nativeJqAvailability).toHaveBeenLastCalledWith(true);
+  });
+
   it("waits for native cancellation before starting the replacement run", async () => {
     const firstNative = Promise.withResolvers<unknown>();
     const cancelNative = Promise.withResolvers<boolean>();
@@ -412,7 +443,7 @@ describe("runJq", () => {
 
     expect(caido.backend.nativeJqAvailability).toHaveBeenCalledTimes(1);
 
-    await vi.advanceTimersByTimeAsync(30_000);
+    await vi.advanceTimersByTimeAsync(JQ_NATIVE_AVAILABILITY_CACHE_TTL_MS);
     await expect(getNativeJqAvailability()).resolves.toMatchObject({
       available: false,
       reason: "jq missing",
@@ -420,5 +451,173 @@ describe("runJq", () => {
 
     expect(caido.backend.nativeJqAvailability).toHaveBeenCalledTimes(2);
     expect(caido.backend.nativeJqAvailability).toHaveBeenLastCalledWith(true);
+  });
+
+  it("times out hung native RPC runs and requests backend cancellation", async () => {
+    const { computeJqTimeout, runJq, setCaido } = await loadRunJqModule();
+    const bodyBytes = new TextEncoder().encode("null");
+    const caido = createCaido({
+      available: true,
+      version: "jq-1.8.2",
+      reason: null,
+    });
+    caido.backend.runNativeJq.mockReturnValue(new Promise<unknown>(() => undefined));
+    setCaido(caido as never);
+
+    const runPromise = runJq({
+      bodyText: "null",
+      bodyBytes,
+      inputBytes: bodyBytes.byteLength,
+      query: ".",
+      flags: [],
+      enginePreference: "native",
+    });
+    await flushMicrotasks(20);
+    await vi.advanceTimersByTimeAsync(computeJqTimeout(bodyBytes.byteLength, ".") + 500);
+
+    await expect(runPromise).resolves.toMatchObject({
+      engine: "native",
+      timedOut: true,
+      exitCode: 1,
+    });
+    expect(caido.backend.cancelNativeJq).toHaveBeenCalledTimes(1);
+    expect(caido.backend.cancelNativeJq.mock.calls[0]?.[0]).toBe("jq-native-1");
+  });
+
+  it("waits for bounded cancellation after the native watchdog fires", async () => {
+    const { computeJqTimeout, runJq, setCaido } = await loadRunJqModule();
+    const firstNative = new Promise<unknown>(() => undefined);
+    const secondResult = {
+      engine: "native",
+      host: "caido-backend-host",
+      inputBytes: 4,
+      stdout: "second",
+      stderr: "",
+      stdoutBytes: 6,
+      stderrBytes: 0,
+      durationMs: 2,
+      exitCode: 0,
+      stdoutTruncated: false,
+      stderrTruncated: false,
+    };
+    const bodyBytes = new TextEncoder().encode("null");
+    const caido = createCaido({
+      available: true,
+      version: "jq-1.8.2",
+      reason: null,
+    });
+    caido.backend.runNativeJq
+      .mockReturnValueOnce(firstNative)
+      .mockResolvedValueOnce(secondResult);
+    caido.backend.cancelNativeJq.mockReturnValue(new Promise<boolean>(() => undefined));
+    setCaido(caido as never);
+
+    const firstRun = runJq({
+      bodyText: "null",
+      bodyBytes,
+      inputBytes: bodyBytes.byteLength,
+      query: ".",
+      flags: [],
+      enginePreference: "native",
+    });
+    await flushMicrotasks(20);
+    await vi.advanceTimersByTimeAsync(computeJqTimeout(bodyBytes.byteLength, ".") + 500);
+    await expect(firstRun).resolves.toMatchObject({ timedOut: true });
+
+    const secondRun = runJq({
+      bodyText: "null",
+      bodyBytes,
+      inputBytes: bodyBytes.byteLength,
+      query: ".",
+      flags: [],
+      enginePreference: "native",
+    });
+    await flushMicrotasks(20);
+
+    expect(caido.backend.runNativeJq).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(249);
+    expect(caido.backend.runNativeJq).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    await flushMicrotasks(20);
+
+    expect(caido.backend.runNativeJq).toHaveBeenCalledTimes(2);
+    await expect(secondRun).resolves.toMatchObject(secondResult);
+  });
+
+  it("ignores late native RPC completion after the frontend watchdog times out", async () => {
+    const { computeJqTimeout, runJq, setCaido } = await loadRunJqModule();
+    const firstNative = Promise.withResolvers<unknown>();
+    const secondNative = Promise.withResolvers<unknown>();
+    const bodyBytes = new TextEncoder().encode("null");
+    const secondResult = {
+      engine: "native",
+      host: "caido-backend-host",
+      inputBytes: 4,
+      stdout: "second",
+      stderr: "",
+      stdoutBytes: 6,
+      stderrBytes: 0,
+      durationMs: 2,
+      exitCode: 0,
+      stdoutTruncated: false,
+      stderrTruncated: false,
+    };
+    const caido = createCaido({
+      available: true,
+      version: "jq-1.8.2",
+      reason: null,
+    });
+    caido.backend.runNativeJq
+      .mockReturnValueOnce(firstNative.promise)
+      .mockReturnValueOnce(secondNative.promise);
+    setCaido(caido as never);
+
+    const firstRun = runJq({
+      bodyText: "null",
+      bodyBytes,
+      inputBytes: bodyBytes.byteLength,
+      query: ".",
+      flags: [],
+      enginePreference: "native",
+    });
+    await flushMicrotasks(20);
+    await vi.advanceTimersByTimeAsync(computeJqTimeout(bodyBytes.byteLength, ".") + 500);
+    await expect(firstRun).resolves.toMatchObject({ timedOut: true });
+
+    const secondRun = runJq({
+      bodyText: "null",
+      bodyBytes,
+      inputBytes: bodyBytes.byteLength,
+      query: ".",
+      flags: [],
+      enginePreference: "native",
+    });
+    await flushMicrotasks(20);
+    expect(caido.backend.runNativeJq).toHaveBeenCalledTimes(2);
+
+    let secondSettled = false;
+    void secondRun.then(() => {
+      secondSettled = true;
+    });
+
+    firstNative.resolve({
+      engine: "native",
+      host: "caido-backend-host",
+      inputBytes: 4,
+      stdout: "late-first",
+      stderr: "",
+      stdoutBytes: 10,
+      stderrBytes: 0,
+      durationMs: 99,
+      exitCode: 0,
+      stdoutTruncated: false,
+      stderrTruncated: false,
+    });
+    await flushMicrotasks(20);
+
+    expect(secondSettled).toBe(false);
+
+    secondNative.resolve(secondResult);
+    await expect(secondRun).resolves.toMatchObject(secondResult);
   });
 });

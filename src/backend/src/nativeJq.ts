@@ -8,6 +8,7 @@ import type {
 import {
   JQ_ALLOWED_FLAGS,
   JQ_INPUT_MAX_BYTES,
+  JQ_NATIVE_AVAILABILITY_CACHE_TTL_MS,
   JQ_NATIVE_HOST,
   JQ_STDERR_MAX_BYTES,
   JQ_STDOUT_MAX_BYTES,
@@ -29,6 +30,8 @@ export type NativeTaskState = {
 };
 
 let availabilityCache: NativeJqAvailability | null = null;
+let availabilityCacheAt = 0;
+let availabilityProbePromise: Promise<NativeJqAvailability> | null = null;
 const fatalDecoder = new TextDecoder("utf-8", { fatal: true });
 
 function isStringArray(value: unknown): value is string[] {
@@ -112,17 +115,22 @@ export function validateNativeJqRequest(request: NativeJqRequest): NativeJqReque
 
 export function resetNativeJqAvailabilityCache(): void {
   availabilityCache = null;
+  availabilityCacheAt = 0;
+  availabilityProbePromise = null;
 }
 
 export async function probeNativeJqAvailability(
   forceRefresh = false,
   spawnFn: SpawnFn = spawn,
 ): Promise<NativeJqAvailability> {
-  if (!forceRefresh && availabilityCache !== null) {
+  if (!forceRefresh && availabilityCache !== null && (Date.now() - availabilityCacheAt) < JQ_NATIVE_AVAILABILITY_CACHE_TTL_MS) {
     return availabilityCache;
   }
+  if (!forceRefresh && availabilityProbePromise) {
+    return availabilityProbePromise;
+  }
 
-  availabilityCache = await new Promise<NativeJqAvailability>((resolve) => {
+  availabilityProbePromise = new Promise<NativeJqAvailability>((resolve) => {
     const child = spawnFn("jq", ["--version"], { stdio: ["ignore", "pipe", "pipe"] });
     const stdoutChunks: Uint8Array[] = [];
     const stderrChunks: Uint8Array[] = [];
@@ -195,6 +203,9 @@ export async function probeNativeJqAvailability(
     }, PROBE_TIMEOUT_MS);
   });
 
+  availabilityCache = await availabilityProbePromise;
+  availabilityCacheAt = Date.now();
+  availabilityProbePromise = null;
   return availabilityCache;
 }
 

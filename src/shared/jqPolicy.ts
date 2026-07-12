@@ -8,6 +8,7 @@ export const JQ_INPUT_MAX_BYTES = 50_000_000;
 export const JQ_FILTER_NULLS_MAX_BYTES = 1_000_000;
 export const JQ_MIN_TIMEOUT_MS = 5_000;
 export const JQ_MAX_TIMEOUT_MS = 30_000;
+export const JQ_NATIVE_AVAILABILITY_CACHE_TTL_MS = 30_000;
 export const JQ_BROWSER_HOST = "browser";
 export const JQ_NATIVE_HOST = "caido-backend-host";
 

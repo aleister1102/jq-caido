@@ -1,6 +1,11 @@
 import { EventEmitter } from "node:events";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { JQ_INPUT_MAX_BYTES, JQ_STDERR_MAX_BYTES, JQ_STDOUT_MAX_BYTES } from "../../../shared/jqPolicy";
+import {
+  JQ_INPUT_MAX_BYTES,
+  JQ_NATIVE_AVAILABILITY_CACHE_TTL_MS,
+  JQ_STDERR_MAX_BYTES,
+  JQ_STDOUT_MAX_BYTES,
+} from "../../../shared/jqPolicy";
 import {
   cancelNativeJqTask,
   probeNativeJqAvailability,
@@ -24,6 +29,19 @@ class FakeChild extends EventEmitter {
   kill = vi.fn(() => {
     this.emit("close", this.closeCode);
     return true;
+  });
+}
+
+function createProbeSpawn(stdout: string, closeCode = 0) {
+  return vi.fn(() => {
+    const child = new FakeChild();
+    queueMicrotask(() => {
+      if (stdout) {
+        child.stdout.emitData(stdout);
+      }
+      child.emit("close", closeCode);
+    });
+    return child as never;
   });
 }
 
@@ -126,6 +144,52 @@ describe("nativeJq", () => {
     expect(availability.available).toBe(false);
     expect(availability.reason).toContain("timed out");
     expect(child.kill).toHaveBeenCalled();
+  });
+
+  it("retries cached available probe results after the TTL", async () => {
+    const spawnSpy = createProbeSpawn("jq-1.8.2");
+
+    await expect(probeNativeJqAvailability(false, spawnSpy as never)).resolves.toMatchObject({
+      available: true,
+      version: "jq-1.8.2",
+    });
+    await expect(probeNativeJqAvailability(false, spawnSpy as never)).resolves.toMatchObject({
+      available: true,
+      version: "jq-1.8.2",
+    });
+
+    expect(spawnSpy).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(JQ_NATIVE_AVAILABILITY_CACHE_TTL_MS);
+    await expect(probeNativeJqAvailability(false, spawnSpy as never)).resolves.toMatchObject({
+      available: true,
+      version: "jq-1.8.2",
+    });
+
+    expect(spawnSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it("retries cached unavailable probe results after the TTL", async () => {
+    const spawnSpy = createProbeSpawn("", 1);
+
+    await expect(probeNativeJqAvailability(false, spawnSpy as never)).resolves.toMatchObject({
+      available: false,
+      version: null,
+    });
+    await expect(probeNativeJqAvailability(false, spawnSpy as never)).resolves.toMatchObject({
+      available: false,
+      version: null,
+    });
+
+    expect(spawnSpy).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(JQ_NATIVE_AVAILABILITY_CACHE_TTL_MS);
+    await expect(probeNativeJqAvailability(false, spawnSpy as never)).resolves.toMatchObject({
+      available: false,
+      version: null,
+    });
+
+    expect(spawnSpy).toHaveBeenCalledTimes(2);
   });
 
   it("caps stdout on multibyte UTF-8 boundaries", async () => {

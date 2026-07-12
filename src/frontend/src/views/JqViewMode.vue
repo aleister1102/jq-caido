@@ -114,6 +114,16 @@ const activeNativeReason = computed(() => {
   return nativeAvailability.value.reason ?? "Native jq is unavailable on the Caido backend host.";
 });
 
+const statusPanelClass = computed(() => {
+  if (result.value?.exitCode === 0) {
+    return "bg-amber-900/20 border-amber-500/30 text-amber-200";
+  }
+  if (result.value && result.value.exitCode !== 0) {
+    return "bg-red-900/20 border-red-500/30 text-red-200";
+  }
+  return "bg-white/5 border-white/10 text-white/80";
+});
+
 onUnmounted(() => {
   if (queryCopiedTimeout) {
     clearTimeout(queryCopiedTimeout);
@@ -204,7 +214,11 @@ onUnmounted(() => {
     <div class="flex-1 flex flex-col min-h-0 gap-2">
       <div
         v-if="stderr"
-        class="p-3 bg-red-900/20 border border-red-500/30 rounded text-red-200 text-xs font-mono whitespace-pre-wrap overflow-auto max-h-32"
+        data-testid="jq-status-panel"
+        :class="[
+          'p-3 border rounded text-xs font-mono whitespace-pre-wrap overflow-auto max-h-32',
+          statusPanelClass,
+        ]"
       >
         {{ stderr }}
       </div>
