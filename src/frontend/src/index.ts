@@ -1,9 +1,8 @@
-import type { Caido } from "@caido/sdk-frontend";
 import JqViewMode from "./views/JqViewMode.vue";
-import { setCaido } from "./caido";
+import { setCaido, type PluginCaido } from "./caido";
 import { warmupJqWorker } from "./lib/runJq";
 
-export const init = (caido: Caido) => {
+export const init = (caido: PluginCaido) => {
   setCaido(caido);
   warmupJqWorker();
 
@@ -19,4 +18,3 @@ export const init = (caido: Caido) => {
     }
   }
 };
-

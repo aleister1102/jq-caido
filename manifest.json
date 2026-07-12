@@ -13,7 +13,17 @@
       "kind": "frontend",
       "id": "jq-frontend",
       "name": "JQ Viewer",
-      "entrypoint": "dist/frontend/index.js"
+      "entrypoint": "dist/frontend/index.js",
+      "backend": {
+        "id": "jq-backend"
+      }
+    },
+    {
+      "kind": "backend",
+      "id": "jq-backend",
+      "name": "JQ Backend",
+      "entrypoint": "dist/backend/index.js",
+      "runtime": "javascript"
     }
   ]
 }

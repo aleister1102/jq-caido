@@ -1,0 +1,137 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { computed, effectScope, nextTick, ref, shallowRef } from "vue";
+import { JQ_AUTO_RUN_MAX_BYTES } from "../../../../shared/jqPolicy";
+
+const runJqMock = vi.fn();
+const cancelActiveJqRunMock = vi.fn().mockResolvedValue(undefined);
+const getNativeJqAvailabilityMock = vi.fn().mockResolvedValue({
+  available: false,
+  version: null,
+  reason: "jq missing",
+});
+
+vi.mock("../../lib/runJq", () => ({
+  runJq: runJqMock,
+  cancelActiveJqRun: cancelActiveJqRunMock,
+  getNativeJqAvailability: getNativeJqAvailabilityMock,
+}));
+
+async function flushMicrotasks(iterations = 4) {
+  for (let i = 0; i < iterations; i++) {
+    await Promise.resolve();
+  }
+}
+
+describe("useJqRunner", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    runJqMock.mockReset();
+    cancelActiveJqRunMock.mockClear();
+    getNativeJqAvailabilityMock.mockClear();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it("does not auto-run payloads at or above 2 MB", async () => {
+    const { useJqRunner } = await import("../useJqRunner");
+    const scope = effectScope();
+    const state = scope.run(() =>
+      useJqRunner(
+        computed(() => '{"big":true}'),
+        shallowRef(new Uint8Array(JQ_AUTO_RUN_MAX_BYTES)),
+        ref(JQ_AUTO_RUN_MAX_BYTES),
+        ref("."),
+        ref(false),
+        ref(false),
+        ref(false),
+        ref(false),
+        computed(() => false),
+      ),
+    )!;
+
+    await nextTick();
+
+    expect(runJqMock).not.toHaveBeenCalled();
+    expect(state.requiresManualRun.value).toBe(true);
+    expect(state.stderr.value).toContain("Press Run");
+    scope.stop();
+  });
+
+  it("ignores stale results after a newer query run starts", async () => {
+    const deferred = Promise.withResolvers<{
+      engine: "jq-wasm";
+      host: "browser";
+      inputBytes: number;
+      stdout: string;
+      stderr: string;
+      stdoutBytes: number;
+      stderrBytes: number;
+      durationMs: number;
+      exitCode: number;
+      stdoutTruncated: boolean;
+      stderrTruncated: boolean;
+    }>();
+    runJqMock
+      .mockReturnValueOnce(deferred.promise)
+      .mockResolvedValueOnce({
+        engine: "jq-wasm",
+        host: "browser",
+        inputBytes: 2,
+        stdout: "second",
+        stderr: "",
+        stdoutBytes: 6,
+        stderrBytes: 0,
+        durationMs: 1,
+        exitCode: 0,
+        stdoutTruncated: false,
+        stderrTruncated: false,
+      });
+
+    const { useJqRunner } = await import("../useJqRunner");
+    const query = ref(".");
+    const scope = effectScope();
+    const state = scope.run(() =>
+      useJqRunner(
+        computed(() => "[]"),
+        shallowRef(new TextEncoder().encode("[]")),
+        ref(2),
+        query,
+        ref(false),
+        ref(false),
+        ref(false),
+        ref(false),
+        computed(() => false),
+      ),
+    )!;
+
+    await nextTick();
+    expect(runJqMock).toHaveBeenCalledTimes(1);
+
+    query.value = ".next";
+    await nextTick();
+    await vi.advanceTimersByTimeAsync(300);
+    await flushMicrotasks();
+
+    expect(runJqMock).toHaveBeenCalledTimes(2);
+    deferred.resolve({
+      engine: "jq-wasm",
+      host: "browser",
+      inputBytes: 2,
+      stdout: "first",
+      stderr: "",
+      stdoutBytes: 5,
+      stderrBytes: 0,
+      durationMs: 5,
+      exitCode: 0,
+      stdoutTruncated: false,
+      stderrTruncated: false,
+    });
+    await flushMicrotasks();
+
+    expect(state.stdout.value).toBe("second");
+    scope.stop();
+  });
+});

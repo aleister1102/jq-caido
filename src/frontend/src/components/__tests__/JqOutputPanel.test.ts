@@ -3,50 +3,69 @@ import { mount } from "@vue/test-utils";
 import JqOutputPanel from "../JqOutputPanel.vue";
 
 describe("JqOutputPanel", () => {
-    it("does not render full output toggle button when truncated", () => {
+    const baseProps = {
+        stdout: "output text",
+        displayOutput: "output text",
+        shouldHighlight: false,
+        enginePreference: "automatic" as const,
+        resultEngine: "native" as const,
+        resultHost: "caido-backend-host" as const,
+        inputBytes: 1024,
+        stdoutBytes: 11,
+        durationMs: 12,
+        isOutputTruncated: false,
+        isStderrTruncated: false,
+        isLoading: false,
+        outputCopied: false,
+        hasRun: true,
+        requiresManualRun: false,
+        outputStatus: "",
+    };
+
+    it("renders the actual result engine and host after a run", () => {
         const wrapper = mount(JqOutputPanel, {
             props: {
-                stdout: "a".repeat(600 * 1024),
-                displayOutput: "truncated info",
-                shouldHighlight: false,
-                isHighlighting: false,
+                ...baseProps,
+            },
+        });
+
+        expect(wrapper.text()).toContain("Engine:");
+        expect(wrapper.text()).toContain("Native jq");
+        expect(wrapper.text()).toContain("Host:");
+        expect(wrapper.text()).toContain("caido-backend-host");
+        expect(wrapper.text()).toContain("Time:");
+    });
+
+    it("shows the selected preference before any result exists", () => {
+        const wrapper = mount(JqOutputPanel, {
+            props: {
+                ...baseProps,
+                hasRun: false,
+                resultEngine: null,
+                resultHost: null,
+            },
+        });
+
+        expect(wrapper.text()).toContain("Mode:");
+        expect(wrapper.text()).toContain("Automatic");
+        expect(wrapper.text()).not.toContain("Host:");
+    });
+
+    it("renders truncated copy text when output is capped", () => {
+        const wrapper = mount(JqOutputPanel, {
+            props: {
+                ...baseProps,
                 isOutputTruncated: true,
-                isLoading: false,
-                outputCopied: false,
             },
         });
 
-        expect(wrapper.text()).not.toContain("Show Full Output");
-        // v-html content rendering in tests can be environment-specific
-        // Check that component accepts the prop without error
-        expect((wrapper.props() as any).displayOutput).toBe("truncated info");
+        expect(wrapper.text()).toContain("Copy Truncated Output");
     });
 
-    it("renders 'Copy Output' button when stdout is present", () => {
+    it("shows copied state when outputCopied is true", () => {
         const wrapper = mount(JqOutputPanel, {
             props: {
-                stdout: "output text",
-                displayOutput: "output text",
-                shouldHighlight: false,
-                isHighlighting: false,
-                isOutputTruncated: false,
-                isLoading: false,
-                outputCopied: false,
-            },
-        });
-
-        expect(wrapper.text()).toContain("Copy Output");
-    });
-
-    it("shows 'Copied' state when outputCopied is true", () => {
-        const wrapper = mount(JqOutputPanel, {
-            props: {
-                stdout: "output text",
-                displayOutput: "output text",
-                shouldHighlight: false,
-                isHighlighting: false,
-                isOutputTruncated: false,
-                isLoading: false,
+                ...baseProps,
                 outputCopied: true,
             },
         });
@@ -55,20 +74,26 @@ describe("JqOutputPanel", () => {
         expect(wrapper.text()).toContain("✓");
     });
 
-    it("emits copy event when copy button clicked", async () => {
+    it("shows stderr truncation and output status badges", () => {
         const wrapper = mount(JqOutputPanel, {
             props: {
-                stdout: "output text",
-                displayOutput: "output text",
-                shouldHighlight: false,
-                isHighlighting: false,
-                isOutputTruncated: false,
-                isLoading: false,
-                outputCopied: false,
+                ...baseProps,
+                isStderrTruncated: true,
+                outputStatus: "Highlighting disabled for large output.",
             },
         });
 
-        // Find the button with the copy icon inside the rendered component
+        expect(wrapper.text()).toContain("Stderr truncated");
+        expect(wrapper.text()).toContain("Highlighting disabled for large output.");
+    });
+
+    it("emits copy event when copy button clicked", async () => {
+        const wrapper = mount(JqOutputPanel, {
+            props: {
+                ...baseProps,
+            },
+        });
+
         const copyButton = wrapper.find("button");
         await copyButton.trigger("click");
         expect(wrapper.emitted("copy")).toHaveLength(1);

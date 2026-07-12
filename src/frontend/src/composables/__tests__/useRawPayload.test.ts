@@ -1,77 +1,96 @@
 import { describe, it, expect } from "vitest";
-import { computed } from "vue";
-import { useRawPayload, type PropsShape, OVERSIZED_PAYLOAD_BYTES, LARGE_PAYLOAD_THRESHOLD_BYTES } from "../useRawPayload";
+import { computed, nextTick } from "vue";
+import { JQ_AUTO_RUN_MAX_BYTES, JQ_AUTOCOMPLETE_MAX_BYTES, JQ_INPUT_MAX_BYTES } from "../../../../shared/jqPolicy";
+import { useRawPayload, type PropsShape } from "../useRawPayload";
 
 describe("useRawPayload", () => {
-  it("should parse payload on ensureParsedJson for small payload (< 25MB)", () => {
+  it("parses payload on demand below the autocomplete threshold", async () => {
     const smallJson = JSON.stringify({ data: "a".repeat(100) });
 
     const props = computed<PropsShape>(() => ({
       raw: smallJson,
     }));
     const state = useRawPayload(props);
+    await nextTick();
     state.ensureParsedJson();
 
     expect(state.parsedJson.value).not.toBeNull();
-    expect(state.parsedJson.value.data.length).toBe(100);
+    expect((state.parsedJson.value as { data: string }).data.length).toBe(100);
   });
 
-  it("should flag isOversized for payload > 50MB", () => {
-    const oversizedJson = JSON.stringify({ data: "a".repeat(OVERSIZED_PAYLOAD_BYTES + 100) });
+  it("flags payloads above 50 MB as oversized", async () => {
+    const oversizedJson = JSON.stringify({ data: "a".repeat(JQ_INPUT_MAX_BYTES + 100) });
     const props = computed<PropsShape>(() => ({
       raw: oversizedJson,
     }));
-    const { isOversized } = useRawPayload(props);
+    const { bodyByteLength, isOversized } = useRawPayload(props);
+    await nextTick();
 
+    expect(bodyByteLength.value).toBeGreaterThan(JQ_INPUT_MAX_BYTES);
     expect(isOversized.value).toBe(true);
   });
 
-  it("should not flag isOversized for payload <= 50MB", () => {
+  it("does not flag small payloads as oversized", async () => {
     const smallJson = JSON.stringify({ data: "a".repeat(100) });
     const props = computed<PropsShape>(() => ({
       raw: smallJson,
     }));
     const { isOversized } = useRawPayload(props);
+    await nextTick();
 
     expect(isOversized.value).toBe(false);
   });
 
-  it("should skip parsedJson for oversized payload (> 50MB)", () => {
-    const oversizedJson = JSON.stringify({ data: "a".repeat(OVERSIZED_PAYLOAD_BYTES + 100) });
+  it("skips parsedJson for oversized payloads", async () => {
+    const oversizedJson = JSON.stringify({ data: "a".repeat(JQ_INPUT_MAX_BYTES + 100) });
     const props = computed<PropsShape>(() => ({
       raw: oversizedJson,
     }));
     const state = useRawPayload(props);
+    await nextTick();
     state.ensureParsedJson();
 
     expect(state.parsedJson.value).toBeNull();
   });
 
-  it("should skip parsedJson for payload > 25MB", () => {
-    const largeJson = JSON.stringify({ data: "a".repeat(LARGE_PAYLOAD_THRESHOLD_BYTES + 100) });
-    const oversizedProps = computed<PropsShape>(() => ({
+  it("skips parsedJson for payloads above 4 MB", async () => {
+    const largeJson = JSON.stringify({ data: "a".repeat(JQ_AUTOCOMPLETE_MAX_BYTES + 100) });
+    const props = computed<PropsShape>(() => ({
       raw: largeJson,
     }));
-    const state = useRawPayload(oversizedProps);
+    const state = useRawPayload(props);
+    await nextTick();
     state.ensureParsedJson();
 
     expect(state.parsedJson.value).toBeNull();
   });
 
-  it("should expose autocomplete warning for payload > 25MB", () => {
+  it("exposes an autocomplete warning above 4 MB", async () => {
     const props = computed<PropsShape>(() => ({
-      raw: `{"data":"${"a".repeat(LARGE_PAYLOAD_THRESHOLD_BYTES + 100)}"}`
+      raw: `{"data":"${"a".repeat(JQ_AUTOCOMPLETE_MAX_BYTES + 100)}"}`
     }));
     const { autocompleteWarning } = useRawPayload(props);
+    await nextTick();
 
-    expect(autocompleteWarning.value).toContain("Autocomplete disabled for large payloads");
+    expect(autocompleteWarning.value).toContain("Autocomplete disabled for payloads");
   });
 
-  it("should not expose autocomplete warning for small payload", () => {
+  it("marks payloads at or above 2 MB as manual run", async () => {
+    const props = computed<PropsShape>(() => ({
+      raw: `{"data":"${"a".repeat(JQ_AUTO_RUN_MAX_BYTES + 100)}"}`
+    }));
+    const { requiresManualRun } = useRawPayload(props);
+    await nextTick();
+
+    expect(requiresManualRun.value).toBe(true);
+  });
+
+  it("does not expose an autocomplete warning for small payloads", async () => {
     const props = computed<PropsShape>(() => ({
       raw: "{\"foo\":\"bar\"}"
     }));
     const { autocompleteWarning } = useRawPayload(props);
+    await nextTick();
 
     expect(autocompleteWarning.value).toBe("");
   });

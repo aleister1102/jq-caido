@@ -1,39 +1,50 @@
 # Caido JQ Plugin
 
-A [Caido](https://caido.io/) frontend plugin that adds a **JQ** view mode to HTTP History, Replay, Search, and Sitemap tabs. Run real `jq` queries against JSON request and response bodies with syntax highlighting and autocomplete.
+A [Caido](https://caido.io/) plugin package that adds an interactive **JQ** view mode to HTTP History, Replay, Search, and Sitemap tabs. It keeps `jq-wasm` for portability, adds an optional backend `jq` path for large payloads, and avoids auto-running queries when the payload would make the UI feel stuck.
 
 Inspired by [burp-jq](https://github.com/synacktiv/burp-jq) (Synacktiv).
 
 ## Features
 
-- **Real `jq` queries** powered by [jq-wasm](https://github.com/owenthereal/jq-wasm).
-- **Autocomplete** based on your JSON structure (supports nested objects, arrays, and `[]` iterators).
-- **Syntax highlighting** via [Prism.js](https://prismjs.com/) (instant for small output; lazy-loaded in chunks for large results up to the 500 KB display cap).
-- **Quick filters**: Compact (`-c`), Raw (`-r`), Keys-only, and Null removal toggles.
-- **Large payload support**: optimized for 20 MB+ JSON with smart truncation and debouncing.
+- Interactive `jq` queries with **Automatic**, **jq-wasm**, and **Native jq** engine controls.
+- `jq-wasm` upgraded to `3.0.0-jq-1.8.2`, using the inline build so the packaged worker does not need to resolve a separate `.wasm` URL.
+- Optional backend `jq` execution on the **Caido backend host** when `jq` is available on `PATH`.
+- Autocomplete for smaller payloads, with large-payload parsing disabled before it becomes expensive.
+- Output metadata for engine, input size, output size, duration, and visible truncation state.
+- Output copy only copies retained output, and labels truncated copies clearly.
 
-> [!TIP]
-> **Performance**: The plugin passes raw strings directly to jq-wasm instead of parsed JS objects, avoiding expensive JS/WASM boundary traversal.
->
-> **Benchmark (17.77 MB JSON):**
-> | Path | Time |
-> |---|---|
-> | `jq.raw(Object)` | ~648,891 ms |
-> | `jq.raw(String)` | **~8.27 ms** |
+## Engine Policy
+
+- Auto-run is enabled only below `2,000,000` bytes.
+- Autocomplete parsing is enabled only below `4,000,000` bytes.
+- Automatic mode prefers **Native jq** at `10,000,000` bytes and above when backend `jq --version` succeeds.
+- Syntax highlighting runs only below `150,000` output bytes.
+- `stdout` is capped at `512 KiB`; `stderr` is capped at `64 KiB`.
+- Inputs above `50,000,000` bytes are rejected.
+
+For payloads at or above `2 MB`, the plugin clears stale output and waits for an explicit **Run** action. Pressing **Enter** still runs the current query immediately.
+
+## Native jq
+
+Native mode is optional. To enable it:
+
+1. Install `jq` on the machine running the Caido backend.
+2. Make sure `jq` is available on `PATH` for Caido's backend process.
+3. Select **Native jq**, or leave the plugin on **Automatic** for `10 MB+` payloads.
+
+If **Native jq** is selected explicitly and unavailable, the plugin returns a readable error instead of silently switching engines. In **Automatic** mode, it falls back to `jq-wasm`.
 
 ## Relationship to [Panes](https://github.com/caido-community/Panes)
 
-Caido's official **Panes** plugin can add custom HTTP tabs via shell commands or workflows. Its built-in jq template runs host `jq .` (fixed query, backend subprocess).
+Caido's official **Panes** plugin can add custom HTTP tabs via shell commands or workflows. Its shell jq template runs host `jq` passively; this plugin keeps the interactive query UI and still covers the Search tab.
 
-|            | Panes shell jq | This plugin (jq-caido)                   |
-| ---------- | -------------- | ---------------------------------------- |
-| Engine     | Host `jq`      | Browser **jq-wasm**                      |
+|            | Panes shell jq | This plugin |
+| ---------- | -------------- | ----------- |
+| Engine     | Host `jq`      | `jq-wasm` or optional backend `jq` |
 | UX         | Passive output | Interactive query, autocomplete, toggles |
-| Search tab | No             | Yes                                      |
+| Search tab | No             | Yes |
 
-You can import a shell-only pane preset into Panes from [`exports/jq-shell.panes.json`](exports/jq-shell.panes.json) (Panes UI: Import). If both plugins are enabled, you may see duplicate **jq** tabs on History/Replay/Sitemap.
-
-**Deprecation:** Interactive jq lives in the personal [caido-panes](https://github.com/aleister1102/caido-panes) fork (Panes + jq-wasm). Install that plugin or import `exports/jq-interactive.panes.json` from that repo into Panes. This standalone plugin remains useful for the **Search** tab and minimal installs.
+You can still import the shell-only preset from [`exports/jq-shell.panes.json`](exports/jq-shell.panes.json). No additional Caido surfaces are registered beyond the existing History, Replay, Search, and Sitemap request/response view modes.
 
 ## Installation
 
@@ -43,18 +54,37 @@ You can import a shell-only pane preset into Panes from [`exports/jq-shell.panes
 
 ## Usage
 
-1. Select an HTTP request or response containing JSON.
-2. Click the **JQ** tab in the message viewer.
-3. Type a `jq` query (e.g., `.data[].id`) and press **Enter** (or just type to run with debounce).
-4. Use **Copy Output** or **Copy Query** to grab results.
+1. Open a request or response with JSON content.
+2. Click the **JQ** tab.
+3. Enter a query such as `.items[0:10]`.
+4. For small payloads, the plugin auto-runs with debounce.
+5. For payloads at or above `2 MB`, click **Run** or press **Enter**.
+6. Use **Copy Query** or **Copy Output** as needed.
 
-## Source Documentation
+Large outputs render as plain text instead of Prism token spans, and capped output is labeled as truncated in both the panel metadata and the copy button.
 
-Architecture notes were moved into source-local README files:
+## Benchmarking
 
-- [frontend architecture and flow](src/frontend/src/README.md)
-- [`useRawPayload`, `parsedJson`, autocomplete caching](src/frontend/src/composables/README.md)
-- [`JqQueryInput` and `modelValue` convention](src/frontend/src/components/README.md)
+Run the deterministic local benchmark with:
+
+```bash
+bun run benchmark
+```
+
+It generates `1 MB`, `6 MB`, and `20 MB` payloads in memory and runs two scenarios for each size:
+
+- `.items[0:10]`
+- `.`
+
+The script prints machine, Caido, `jq`, and `jq-wasm` version information before the timing table. Results are environment-dependent and should be treated as local reference data, not guarantees.
+
+Reference local CLI run on 2026-07-13:
+
+- Machine: `darwin 25.5.0 arm64`, `Apple M4 Max`
+- Caido: `n/a (benchmark runs outside Caido)`
+- `jq-wasm`: `jq-1.8.2`
+- `jq`: `jq-1.7.1-apple`
+- `20 MB` `.items[0:10]`: `jq-wasm 183.3 ms`, `native jq 173.4 ms`
 
 ## Development
 
@@ -62,29 +92,29 @@ Architecture notes were moved into source-local README files:
 # Install dependencies
 bun install
 
-# Watch mode (live reload in Caido)
-bun run watch
+# Run tests
+bun run test
 
-# Production build
+# Build the plugin package
 bun run build
 
-# Package release zip (clean build + README/LICENSE bundled)
+# Package release zip with README.md and LICENSE
 bun run package
+
+# Run the local benchmark
+bun run benchmark
 ```
+
+`bun run package` produces `dist/plugin_package.zip` and bundles `README.md` plus `LICENSE` into the packaged plugin directory.
 
 ## Releasing
 
 1. Bump `version` in `package.json`, `manifest.json`, and `caido.config.ts`.
 2. Commit and push to `main`.
-3. Go to **Actions** > **Release** > **Run workflow** (on `main` branch).
-4. GitHub Actions builds, signs, and publishes an immutable release tagged with the version from `manifest.json`.
+3. Run the GitHub Actions **Release** workflow on `main`.
 
 ## Credits
 
 - [burp-jq](https://github.com/synacktiv/burp-jq) by Synacktiv
 - [jq-wasm](https://github.com/owenthereal/jq-wasm)
 - [Prism.js](https://prismjs.com/)
-
-## Author
-
-**aleister1102**

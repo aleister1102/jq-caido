@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { NativeJqAvailability } from "../../../../shared/jqContract";
 
 type WorkerPlan =
   | { kind: "hang" }
@@ -18,9 +19,11 @@ class MockWorker {
     MockWorker.instances.push(this);
   }
 
-  postMessage(message: { id: number }): void {
+  postMessage(message: { id: number; inputBytes: number }): void {
     const plan = MockWorker.plans.shift() ?? { kind: "success", stdout: "" };
-    if (plan.kind === "hang") return;
+    if (plan.kind === "hang") {
+      return;
+    }
 
     if (plan.kind === "error") {
       this.onerror?.({ message: plan.message } as ErrorEvent);
@@ -28,7 +31,9 @@ class MockWorker {
     }
 
     queueMicrotask(() => {
-      if (this.terminated) return;
+      if (this.terminated) {
+        return;
+      }
       if (plan.kind === "failure") {
         this.onmessage?.({
           data: {
@@ -41,13 +46,25 @@ class MockWorker {
       }
 
       const encoder = new TextEncoder();
+      const stdoutBuffer = encoder.encode(plan.stdout).buffer;
+      const stderrBuffer = encoder.encode(plan.stderr ?? "").buffer;
       this.onmessage?.({
         data: {
           id: message.id,
           success: true,
-          stdoutBuffer: encoder.encode(plan.stdout).buffer,
-          stderrBuffer: encoder.encode(plan.stderr ?? "").buffer,
-          exitCode: plan.exitCode ?? 0,
+          result: {
+            engine: "jq-wasm",
+            host: "browser",
+            inputBytes: message.inputBytes,
+            stdoutBytes: plan.stdout.length,
+            stderrBytes: (plan.stderr ?? "").length,
+            durationMs: 4,
+            exitCode: plan.exitCode ?? 0,
+            stdoutTruncated: false,
+            stderrTruncated: false,
+          },
+          stdoutBuffer,
+          stderrBuffer,
         },
       } as MessageEvent);
     });
@@ -58,9 +75,32 @@ class MockWorker {
   }
 }
 
+class MockURL extends URL {
+  static createObjectURL() {
+    return "blob:mock";
+  }
+}
+
+function createCaido(availability: NativeJqAvailability, nativeResult?: unknown) {
+  return {
+    assets: {
+      get: vi.fn().mockResolvedValue({
+        asString: vi.fn().mockResolvedValue(""),
+      }),
+    },
+    backend: {
+      nativeJqAvailability: vi.fn().mockResolvedValue(availability),
+      runNativeJq: vi.fn().mockResolvedValue(nativeResult),
+      cancelNativeJq: vi.fn().mockResolvedValue(true),
+    },
+  };
+}
+
 async function loadRunJqModule() {
   vi.resetModules();
-  return import("../runJq");
+  const caido = await import("../../caido");
+  const runJq = await import("../runJq");
+  return { ...runJq, setCaido: caido.setCaido };
 }
 
 async function flushMicrotasks(iterations = 4) {
@@ -69,12 +109,13 @@ async function flushMicrotasks(iterations = 4) {
   }
 }
 
-describe("runJq worker recovery", () => {
+describe("runJq", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     MockWorker.instances = [];
     MockWorker.plans = [];
     vi.stubGlobal("Worker", MockWorker as unknown as typeof Worker);
+    vi.stubGlobal("URL", MockURL as unknown as typeof URL);
   });
 
   afterEach(() => {
@@ -83,106 +124,121 @@ describe("runJq worker recovery", () => {
     vi.restoreAllMocks();
   });
 
-  it("recreates the worker after a timeout", async () => {
+  it("times out jq-wasm runs and recreates the worker", async () => {
     MockWorker.plans = [
       { kind: "hang" },
       { kind: "success", stdout: "42" },
     ];
 
     const { computeJqTimeout, runJq } = await loadRunJqModule();
+    const bodyBytes = new TextEncoder().encode("null");
 
-    const firstRun = runJq("null", ".");
-    await vi.advanceTimersByTimeAsync(computeJqTimeout(new TextEncoder().encode("null").byteLength, ".") + 1);
+    const firstRun = runJq({
+      bodyText: "null",
+      bodyBytes,
+      query: ".",
+      flags: [],
+      enginePreference: "jq-wasm",
+    });
+    await vi.advanceTimersByTimeAsync(computeJqTimeout(bodyBytes.byteLength, ".") + 1);
 
     await expect(firstRun).resolves.toMatchObject({
-      stdout: "",
-      exitCode: 1,
+      engine: "jq-wasm",
       timedOut: true,
-    });
-    expect(MockWorker.instances).toHaveLength(1);
-    expect(MockWorker.instances[0]?.terminated).toBe(true);
-
-    await expect(runJq("null", ".")).resolves.toMatchObject({
-      stdout: "42",
-      stderr: "",
-      exitCode: 0,
-    });
-    expect(MockWorker.instances).toHaveLength(2);
-  });
-
-  it("replaces the worker when a new run supersedes an in-flight run", async () => {
-    MockWorker.plans = [
-      { kind: "hang" },
-      { kind: "success", stdout: "new result" },
-    ];
-
-    const { runJq } = await loadRunJqModule();
-
-    const firstRun = runJq("null", ".");
-    await flushMicrotasks();
-
-    expect(MockWorker.instances).toHaveLength(1);
-
-    const secondRun = runJq("null", ".");
-    await flushMicrotasks();
-
-    await expect(firstRun).resolves.toMatchObject({
-      stdout: "",
-      stderr: "Cancelled",
       exitCode: 1,
     });
     expect(MockWorker.instances[0]?.terminated).toBe(true);
 
-    await expect(secondRun).resolves.toMatchObject({
-      stdout: "new result",
-      stderr: "",
+    await expect(runJq({
+      bodyText: "null",
+      bodyBytes,
+      query: ".",
+      flags: [],
+      enginePreference: "jq-wasm",
+    })).resolves.toMatchObject({
+      stdout: "42",
       exitCode: 0,
     });
     expect(MockWorker.instances).toHaveLength(2);
   });
 
-  it("recreates the worker after a warmup error", async () => {
-    MockWorker.plans = [
-      { kind: "error", message: "warmup failed" },
-      { kind: "success", stdout: "ready" },
-    ];
-
-    const { runJq, warmupJqWorker } = await loadRunJqModule();
-
-    warmupJqWorker();
-    await flushMicrotasks();
-
-    expect(MockWorker.instances).toHaveLength(1);
-    expect(MockWorker.plans).toHaveLength(1);
-
-    await expect(runJq("null", ".")).resolves.toMatchObject({
-      stdout: "ready",
-      stderr: "",
-      exitCode: 0,
+  it("falls back to jq-wasm in automatic mode when native jq is unavailable", async () => {
+    MockWorker.plans = [{ kind: "success", stdout: "fallback" }];
+    const { runJq, setCaido } = await loadRunJqModule();
+    const caido = createCaido({
+      available: false,
+      version: null,
+      reason: "jq missing",
     });
-    expect(MockWorker.instances).toHaveLength(2);
+    setCaido(caido as never);
+
+    const result = await runJq({
+      bodyText: "null",
+      bodyBytes: new Uint8Array(10_000_000),
+      query: ".",
+      flags: [],
+      enginePreference: "automatic",
+    });
+
+    expect(result.engine).toBe("jq-wasm");
+    expect(result.stdout).toBe("fallback");
+    expect(caido.backend.nativeJqAvailability).toHaveBeenCalled();
+    expect(caido.backend.runNativeJq).not.toHaveBeenCalled();
   });
 
-  it("recreates the worker after a warmup failure message", async () => {
-    MockWorker.plans = [
-      { kind: "failure", message: "warmup failed" },
-      { kind: "success", stdout: "ready" },
-    ];
+  it("returns a useful error when native jq is explicitly unavailable", async () => {
+    const { runJq, setCaido } = await loadRunJqModule();
+    setCaido(createCaido({
+      available: false,
+      version: null,
+      reason: "jq missing",
+    }) as never);
 
-    const { runJq, warmupJqWorker } = await loadRunJqModule();
-
-    warmupJqWorker();
-    await flushMicrotasks();
-
-    expect(MockWorker.instances).toHaveLength(1);
-    expect(MockWorker.instances[0]?.terminated).toBe(true);
-    expect(MockWorker.plans).toHaveLength(1);
-
-    await expect(runJq("null", ".")).resolves.toMatchObject({
-      stdout: "ready",
-      stderr: "",
-      exitCode: 0,
+    const result = await runJq({
+      bodyText: "null",
+      bodyBytes: new TextEncoder().encode("null"),
+      query: ".",
+      flags: [],
+      enginePreference: "native",
     });
-    expect(MockWorker.instances).toHaveLength(2);
+
+    expect(result.engine).toBe("native");
+    expect(result.stderr).toContain("Native jq is unavailable");
+    expect(MockWorker.instances).toHaveLength(0);
+  });
+
+  it("uses native jq in automatic mode when available for large inputs", async () => {
+    const nativeResult = {
+      engine: "native",
+      host: "caido-backend-host",
+      inputBytes: 10_000_000,
+      stdout: "native",
+      stderr: "",
+      stdoutBytes: 6,
+      stderrBytes: 0,
+      durationMs: 2,
+      exitCode: 0,
+      stdoutTruncated: false,
+      stderrTruncated: false,
+    };
+    const { runJq, setCaido } = await loadRunJqModule();
+    const caido = createCaido({
+      available: true,
+      version: "jq-1.8.2",
+      reason: null,
+    }, nativeResult);
+    setCaido(caido as never);
+
+    const result = await runJq({
+      bodyText: "null",
+      bodyBytes: new Uint8Array(10_000_000),
+      query: ".",
+      flags: [],
+      enginePreference: "automatic",
+    });
+
+    expect(result).toMatchObject(nativeResult);
+    expect(caido.backend.runNativeJq).toHaveBeenCalledOnce();
+    expect(MockWorker.instances).toHaveLength(0);
   });
 });

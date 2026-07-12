@@ -1,10 +1,11 @@
-import { computed, ref, type ComputedRef } from "vue";
+import { computed, ref, shallowRef, watch, type ComputedRef } from "vue";
 import { extractJsonBodyString } from "../lib/extractJsonBody";
-
-export const OVERSIZED_PAYLOAD_BYTES = 50_000_000;
-export const LARGE_PAYLOAD_THRESHOLD_BYTES = 25_000_000;
-/** walk() in jq-wasm is too slow to run on multi-MB JSON with No Nulls enabled. */
-export const FILTER_NULLS_MAX_BYTES = 1_000_000;
+import {
+  JQ_AUTOCOMPLETE_MAX_BYTES,
+  JQ_INPUT_MAX_BYTES,
+  shouldAutoRun,
+  shouldEnableAutocomplete,
+} from "../../../shared/jqPolicy";
 
 export type RawCarrier = { raw?: string; id?: string } | undefined;
 
@@ -30,8 +31,11 @@ function nonEmptyId(...candidates: (string | undefined)[]): string | null {
 }
 
 export function useRawPayload(props: ComputedRef<PropsShape>) {
-  const parsedJson = ref<any>(null);
+  const encoder = new TextEncoder();
+  const parsedJson = shallowRef<unknown | null>(null);
   const parsedJsonSource = ref("");
+  const bodyBytes = shallowRef<Uint8Array | null>(null);
+  const bodyByteLength = ref(0);
 
   const rawCandidates = computed<Record<string, string | undefined>>(() => ({
     raw: props.value.raw,
@@ -58,12 +62,14 @@ export function useRawPayload(props: ComputedRef<PropsShape>) {
   });
 
   const bodyText = computed(() => extractJsonBodyString(rawInfo.value.raw) ?? "");
-  const isOversized = computed(() => bodyText.value.length > OVERSIZED_PAYLOAD_BYTES);
-  const isLargePayload = computed(() => bodyText.value.length > LARGE_PAYLOAD_THRESHOLD_BYTES);
+  const isOversized = computed(() => bodyByteLength.value > JQ_INPUT_MAX_BYTES);
+  const requiresManualRun = computed(
+    () => bodyByteLength.value > 0 && !isOversized.value && !shouldAutoRun(bodyByteLength.value),
+  );
 
   const autocompleteWarning = computed(() => {
-    if (!isLargePayload.value) return "";
-    return `Autocomplete disabled for large payloads over ${(LARGE_PAYLOAD_THRESHOLD_BYTES / 1_000_000).toFixed(0)} MB.`;
+    if (shouldEnableAutocomplete(bodyByteLength.value)) return "";
+    return `Autocomplete disabled for payloads over ${(JQ_AUTOCOMPLETE_MAX_BYTES / 1_000_000).toFixed(0)} MB.`;
   });
 
   const bodyParse = computed(() => {
@@ -74,7 +80,7 @@ export function useRawPayload(props: ComputedRef<PropsShape>) {
 
   const ensureParsedJson = () => {
     const json = bodyText.value;
-    if (!json || isOversized.value || isLargePayload.value) {
+    if (!json || isOversized.value || !shouldEnableAutocomplete(bodyByteLength.value)) {
       parsedJson.value = null;
       parsedJsonSource.value = "";
       return;
@@ -97,15 +103,33 @@ export function useRawPayload(props: ComputedRef<PropsShape>) {
     parsedJsonSource.value = "";
   };
 
+  watch(
+    bodyText,
+    (json) => {
+      clearParsedJson();
+      if (!json) {
+        bodyBytes.value = null;
+        bodyByteLength.value = 0;
+        return;
+      }
+      const encoded = encoder.encode(json);
+      bodyBytes.value = encoded;
+      bodyByteLength.value = encoded.byteLength;
+    },
+    { immediate: true },
+  );
+
   return {
     rawCandidates,
     rawInfo,
     selectedIds,
     bodyText,
+    bodyBytes,
+    bodyByteLength,
     bodyParse,
     parsedJson,
     isOversized,
-    isLargePayload,
+    requiresManualRun,
     autocompleteWarning,
     ensureParsedJson,
     clearParsedJson,

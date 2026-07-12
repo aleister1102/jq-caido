@@ -1,38 +1,77 @@
+import type {
+  JqEngine,
+  JqEnginePreference,
+  JqExecutionResult,
+  NativeJqAvailability,
+  WorkerJqResponse,
+} from "../../../shared/jqContract";
+import {
+  JQ_BROWSER_HOST,
+  JQ_NATIVE_HOST,
+  computeJqTimeout,
+  shouldPreferNative,
+  type JqFlag,
+} from "../../../shared/jqPolicy";
+import { byteLengthOfText } from "../../../shared/jqTransfer";
 import { getCaido } from "../caido";
-
-export type JqResult = {
-  stdout: string;
-  stderr: string;
-  exitCode: number;
-  timedOut?: boolean;
-};
 
 const WORKER_ASSET = "jq.worker.js";
 
 let worker: Worker | null = null;
 let workerInit: Promise<Worker> | null = null;
-let currentTask: {
-  resolve: (res: JqResult) => void;
-  reject: (err: Error) => void;
-  timer: ReturnType<typeof setTimeout>;
-  id: number;
-} | null = null;
+let currentTask:
+  | {
+    id: number;
+    engine: JqEngine;
+    inputBytes: number;
+    backendTaskId?: string;
+    timer?: ReturnType<typeof setTimeout>;
+    resolve: (result: JqExecutionResult) => void;
+  }
+  | null = null;
 let taskIdCounter = 0;
+let nativeAvailabilityCache: NativeJqAvailability | null = null;
+let nativeAvailabilityPromise: Promise<NativeJqAvailability> | null = null;
 
 const decoder = new TextDecoder();
 const encoder = new TextEncoder();
 
-/** Exported for tests. */
-export function computeJqTimeout(byteLength: number, query: string): number {
-  const BASE_MS = 15_000;
-  const PER_MB_MS = 8_000;
-  const MAX_MS = 300_000;
-  const mb = byteLength / (1024 * 1024);
-  let ms = BASE_MS + Math.ceil(mb) * PER_MB_MS;
-  if (query.includes("walk(")) {
-    ms += 20_000 + Math.ceil(mb) * 25_000;
-  }
-  return Math.min(MAX_MS, ms);
+export { computeJqTimeout };
+
+export type RunJqParams = {
+  bodyText: string;
+  bodyBytes: Uint8Array;
+  query: string;
+  flags: JqFlag[];
+  enginePreference: JqEnginePreference;
+};
+
+function createResult(
+  engine: JqEngine,
+  inputBytes: number,
+  message: string,
+  options?: {
+    cancelled?: boolean;
+    timedOut?: boolean;
+    durationMs?: number;
+    exitCode?: number;
+  },
+): JqExecutionResult {
+  return {
+    engine,
+    host: engine === "native" ? JQ_NATIVE_HOST : JQ_BROWSER_HOST,
+    inputBytes,
+    stdout: "",
+    stderr: message,
+    stdoutBytes: 0,
+    stderrBytes: byteLengthOfText(message),
+    durationMs: options?.durationMs ?? 0,
+    exitCode: options?.exitCode ?? 1,
+    stdoutTruncated: false,
+    stderrTruncated: false,
+    cancelled: options?.cancelled,
+    timedOut: options?.timedOut,
+  };
 }
 
 function resetWorker(): void {
@@ -41,40 +80,76 @@ function resetWorker(): void {
   workerInit = null;
 }
 
-function cancelCurrentTask(): void {
-  if (!currentTask) return;
-  clearTimeout(currentTask.timer);
-  currentTask.resolve({ stdout: "", stderr: "Cancelled", exitCode: 1 });
+function finalizeTask(id: number, result: JqExecutionResult): void {
+  if (!currentTask || currentTask.id !== id) {
+    return;
+  }
+  if (currentTask.timer) {
+    clearTimeout(currentTask.timer);
+  }
+  currentTask.resolve(result);
   currentTask = null;
-  resetWorker();
+}
+
+export async function cancelActiveJqRun(): Promise<void> {
+  if (!currentTask) return;
+  const task = currentTask;
+  currentTask = null;
+  if (task.timer) {
+    clearTimeout(task.timer);
+  }
+  task.resolve(
+    createResult(task.engine, task.inputBytes, "Cancelled", {
+      cancelled: true,
+    }),
+  );
+  if (task.engine === "jq-wasm") {
+    resetWorker();
+    return;
+  }
+
+  const caido = getCaido();
+  if (task.backendTaskId && caido) {
+    void caido.backend.cancelNativeJq(task.backendTaskId).catch(() => undefined);
+  }
 }
 
 function attachWorkerHandlers(w: Worker): void {
-  w.onmessage = (e: MessageEvent) => {
-    if (e.data.id === 0) {
-      if (!e.data.success) resetWorker();
+  w.onmessage = (event: MessageEvent<WorkerJqResponse>) => {
+    if (event.data.id === 0) {
+      if (!event.data.success) resetWorker();
       return;
     }
 
     if (!currentTask) return;
-    if (e.data.id !== currentTask.id) return;
+    if (event.data.id !== currentTask.id) return;
 
-    clearTimeout(currentTask.timer);
-    if (e.data.success) {
-      const stdout = decoder.decode(new Uint8Array(e.data.stdoutBuffer));
-      const stderr = decoder.decode(new Uint8Array(e.data.stderrBuffer));
-      currentTask.resolve({ stdout, stderr, exitCode: e.data.exitCode });
-    } else {
-      currentTask.reject(new Error(e.data.error));
+    if (event.data.success) {
+      const stdout = decoder.decode(new Uint8Array(event.data.stdoutBuffer));
+      const stderr = decoder.decode(new Uint8Array(event.data.stderrBuffer));
+      finalizeTask(event.data.id, {
+        ...event.data.result,
+        stdout,
+        stderr,
+      });
+      return;
     }
-    currentTask = null;
+
+    finalizeTask(
+      event.data.id,
+      createResult("jq-wasm", currentTask.inputBytes, event.data.error),
+    );
+    resetWorker();
   };
   w.onerror = (e: ErrorEvent) => {
-    if (currentTask) {
-      clearTimeout(currentTask.timer);
-      currentTask.reject(new Error("Worker error: " + e.message));
-      currentTask = null;
+    if (!currentTask) {
+      resetWorker();
+      return;
     }
+    finalizeTask(
+      currentTask.id,
+      createResult("jq-wasm", currentTask.inputBytes, `Worker error: ${e.message}`),
+    );
     resetWorker();
   };
 }
@@ -112,65 +187,216 @@ async function ensureWorker(): Promise<Worker> {
   return workerInit;
 }
 
-async function workerForNewTask(): Promise<Worker> {
-  for (;;) {
-    cancelCurrentTask();
-    const w = await ensureWorker();
-    if (!currentTask) return w;
-  }
-}
-
 /** Pre-warm WASM after Caido init (id 0 is handled separately from foreground tasks). */
 export function warmupJqWorker(): void {
   if (typeof Worker === "undefined") return;
   void ensureWorker()
     .then((w) => {
       const warmupBytes = encoder.encode("null");
+      const transferable = warmupBytes.slice();
       w.postMessage(
-        { id: 0, jsonBuffer: warmupBytes.buffer, query: ".", flags: [] },
-        [warmupBytes.buffer],
+        { id: 0, inputBuffer: transferable.buffer, inputBytes: transferable.byteLength, query: ".", flags: [] },
+        [transferable.buffer],
       );
     })
     .catch(() => { });
 }
 
-export async function runJq(json: string, query: string, flags: string[] = []): Promise<JqResult> {
+function nativeUnavailable(reason: string): NativeJqAvailability {
+  return {
+    available: false,
+    version: null,
+    reason,
+  };
+}
+
+export async function getNativeJqAvailability(forceRefresh = false): Promise<NativeJqAvailability> {
+  if (!forceRefresh && nativeAvailabilityCache) {
+    return nativeAvailabilityCache;
+  }
+  if (!forceRefresh && nativeAvailabilityPromise) {
+    return nativeAvailabilityPromise;
+  }
+
+  const caido = getCaido();
+  if (!caido || typeof caido.backend.nativeJqAvailability !== "function") {
+    nativeAvailabilityCache = nativeUnavailable("The backend jq service is unavailable.");
+    return nativeAvailabilityCache;
+  }
+
+  nativeAvailabilityPromise = caido.backend.nativeJqAvailability(forceRefresh)
+    .then((availability) => {
+      nativeAvailabilityCache = availability;
+      nativeAvailabilityPromise = null;
+      return availability;
+    })
+    .catch((error) => {
+      nativeAvailabilityCache = nativeUnavailable(
+        error instanceof Error ? error.message : "Failed to probe native jq.",
+      );
+      nativeAvailabilityPromise = null;
+      return nativeAvailabilityCache;
+    });
+
+  return nativeAvailabilityPromise;
+}
+
+export function resolveJqEngine(
+  preference: JqEnginePreference,
+  inputBytes: number,
+  availability: NativeJqAvailability | null,
+): { engine: JqEngine; unavailableReason: string | null } {
+  if (preference === "jq-wasm") {
+    return { engine: "jq-wasm", unavailableReason: null };
+  }
+
+  if (preference === "native") {
+    if (availability?.available) {
+      return { engine: "native", unavailableReason: null };
+    }
+    return {
+      engine: "native",
+      unavailableReason: availability?.reason ?? "Native jq is unavailable on the Caido backend host.",
+    };
+  }
+
+  if (!shouldPreferNative(inputBytes) || !availability?.available) {
+    return {
+      engine: "jq-wasm",
+      unavailableReason: availability?.available === false ? availability.reason : null,
+    };
+  }
+
+  return { engine: "native", unavailableReason: null };
+}
+
+async function runWasmJq(
+  bodyBytes: Uint8Array,
+  query: string,
+  flags: JqFlag[],
+): Promise<JqExecutionResult> {
   let w: Worker;
   try {
-    w = await workerForNewTask();
-  } catch (err) {
+    w = await ensureWorker();
+  } catch (error) {
     const message =
-      err instanceof Error ? err.message : "Failed to start jq worker (rebuild and reinstall the plugin)";
-    return { stdout: "", stderr: message, exitCode: 1 };
+      error instanceof Error ? error.message : "Failed to start jq worker (rebuild and reinstall the plugin)";
+    return createResult("jq-wasm", bodyBytes.byteLength, message);
   }
 
   return new Promise((resolve) => {
     taskIdCounter++;
     const id = taskIdCounter;
-
-    const jsonBytes = encoder.encode(json);
-    const ms = computeJqTimeout(jsonBytes.byteLength, query);
+    const timeoutMs = computeJqTimeout(bodyBytes.byteLength, query);
+    const transferable = bodyBytes.slice();
 
     currentTask = {
       id,
-      resolve: (res: JqResult) => resolve(res),
-      reject: (err: Error) => {
-        const message = err.message ?? "Unknown error";
-        resolve({ stdout: "", stderr: message, exitCode: 1, timedOut: message.includes("timed out") });
-      },
+      engine: "jq-wasm",
+      inputBytes: bodyBytes.byteLength,
+      resolve,
       timer: setTimeout(() => {
         if (currentTask?.id === id) {
-          currentTask.reject(
-            new Error(
-              `jq-wasm timed out after ${Math.round(ms / 1000)}s (${Math.round(jsonBytes.byteLength / 1024)} KB input). Try a simpler query or disable No Nulls.`,
+          finalizeTask(
+            id,
+            createResult(
+              "jq-wasm",
+              bodyBytes.byteLength,
+              `jq-wasm timed out after ${Math.round(timeoutMs / 1000)}s (${Math.round(bodyBytes.byteLength / 1024)} KB input). Try a simpler query or disable No Nulls.`,
+              { timedOut: true },
             ),
           );
-          currentTask = null;
           resetWorker();
         }
-      }, ms),
+      }, timeoutMs),
     };
 
-    w.postMessage({ id, jsonBuffer: jsonBytes.buffer, query, flags }, [jsonBytes.buffer]);
+    w.postMessage(
+      {
+        id,
+        inputBuffer: transferable.buffer,
+        inputBytes: bodyBytes.byteLength,
+        query,
+        flags,
+      },
+      [transferable.buffer],
+    );
   });
+}
+
+async function runNativeJq(
+  bodyText: string,
+  inputBytes: number,
+  query: string,
+  flags: JqFlag[],
+): Promise<JqExecutionResult> {
+  const caido = getCaido();
+  if (!caido || typeof caido.backend.runNativeJq !== "function") {
+    return createResult("native", inputBytes, "Native jq backend is unavailable.");
+  }
+
+  return new Promise((resolve) => {
+    taskIdCounter++;
+    const id = taskIdCounter;
+    const backendTaskId = `jq-native-${id}`;
+    currentTask = {
+      id,
+      engine: "native",
+      inputBytes,
+      backendTaskId,
+      resolve,
+    };
+
+    void caido.backend.runNativeJq({
+      taskId: backendTaskId,
+      input: bodyText,
+      inputBytes,
+      query,
+      flags,
+      timeoutMs: computeJqTimeout(inputBytes, query),
+    }).then((result) => {
+      finalizeTask(id, result);
+    }).catch((error) => {
+      finalizeTask(
+        id,
+        createResult(
+          "native",
+          inputBytes,
+          error instanceof Error ? error.message : "Native jq execution failed.",
+        ),
+      );
+    });
+  });
+}
+
+export async function runJq({
+  bodyText,
+  bodyBytes,
+  query,
+  flags,
+  enginePreference,
+}: RunJqParams): Promise<JqExecutionResult> {
+  await cancelActiveJqRun();
+
+  const inputBytes = bodyBytes.byteLength;
+  const needsAvailability =
+    enginePreference === "native" || (enginePreference === "automatic" && shouldPreferNative(inputBytes));
+  const availability = needsAvailability
+    ? await getNativeJqAvailability(enginePreference === "native")
+    : null;
+  const resolvedEngine = resolveJqEngine(enginePreference, inputBytes, availability);
+
+  if (enginePreference === "native" && resolvedEngine.unavailableReason) {
+    return createResult(
+      "native",
+      inputBytes,
+      `Native jq is unavailable on the Caido backend host. ${resolvedEngine.unavailableReason}`,
+    );
+  }
+
+  if (resolvedEngine.engine === "native") {
+    return runNativeJq(bodyText, inputBytes, query, flags);
+  }
+
+  return runWasmJq(bodyBytes, query, flags);
 }

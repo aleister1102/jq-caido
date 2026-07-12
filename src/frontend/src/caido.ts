@@ -1,11 +1,14 @@
 import type { Caido } from "@caido/sdk-frontend";
+import type { JqBackendApi, JqBackendEvents } from "../../shared/jqContract";
 
-let caidoInstance: Caido | null = null;
+export type PluginCaido = Caido<JqBackendApi, JqBackendEvents>;
 
-export function setCaido(caido: Caido) {
+let caidoInstance: PluginCaido | null = null;
+
+export function setCaido(caido: PluginCaido) {
   caidoInstance = caido;
 }
 
-export function getCaido(): Caido | null {
+export function getCaido(): PluginCaido | null {
   return caidoInstance;
 }
