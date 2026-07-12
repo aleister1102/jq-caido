@@ -65,7 +65,7 @@ export function useJqRunner(
     }
     return parts.join("\n");
   });
-  const canRun = computed(() => bodyByteLength.value > 0 && !isOversized.value && bodyBytes.value !== null);
+  const canRun = computed(() => bodyByteLength.value > 0 && !isOversized.value && bodyText.value.length > 0);
   const requiresManualRun = computed(() => canRun.value && !shouldAutoRun(bodyByteLength.value));
 
   const setIdleState = () => {
@@ -77,7 +77,7 @@ export function useJqRunner(
       return;
     }
 
-    if (!bodyText.value || bodyBytes.value === null) {
+    if (!bodyText.value || bodyByteLength.value === 0) {
       statusText.value = "Error: No content provided to this view mode.";
       return;
     }
@@ -95,7 +95,7 @@ export function useJqRunner(
   };
 
   const executeJqInternal = async (runGeneration: number) => {
-    if (!bodyText.value || bodyBytes.value === null) {
+    if (!bodyText.value || bodyByteLength.value === 0) {
       setIdleState();
       return;
     }
@@ -110,6 +110,7 @@ export function useJqRunner(
     const nextResult = await runJq({
       bodyText: bodyText.value,
       bodyBytes: bodyBytes.value,
+      inputBytes: bodyByteLength.value,
       query: buildEffectiveQuery(query.value, keysOnly.value, filterNulls.value, bodyByteLength.value),
       flags,
       enginePreference: enginePreference.value,

@@ -144,6 +144,7 @@ describe("nativeJq", () => {
 
     const result = await promise;
     expect(result.stdoutTruncated).toBe(true);
+    expect(result.exitCode).toBe(0);
     expect(Buffer.byteLength(result.stdout)).toBe(result.stdoutBytes);
     expect(result.stdoutBytes).toBeLessThanOrEqual(JQ_STDOUT_MAX_BYTES);
     expect(child.kill).toHaveBeenCalled();
@@ -166,6 +167,7 @@ describe("nativeJq", () => {
 
     const result = await promise;
     expect(result.stderrTruncated).toBe(true);
+    expect(result.exitCode).toBe(0);
     expect(Buffer.byteLength(result.stderr)).toBe(result.stderrBytes);
     expect(result.stderrBytes).toBeLessThanOrEqual(JQ_STDERR_MAX_BYTES);
     expect(child.kill).toHaveBeenCalled();

@@ -113,8 +113,8 @@ export function useRawPayload(props: ComputedRef<PropsShape>) {
         return;
       }
       const encoded = encoder.encode(json);
-      bodyBytes.value = encoded;
       bodyByteLength.value = encoded.byteLength;
+      bodyBytes.value = shouldAutoRun(encoded.byteLength) ? encoded : null;
     },
     { immediate: true },
   );

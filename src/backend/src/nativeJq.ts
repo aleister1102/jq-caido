@@ -14,7 +14,7 @@ import {
   clampJqTimeout,
   isAllowedJqFlag,
 } from "../../shared/jqPolicy";
-import { byteLengthOfText, concatByteChunks } from "../../shared/jqTransfer";
+import { concatByteChunks } from "../../shared/jqTransfer";
 
 type SpawnFn = typeof spawn;
 const PROBE_OUTPUT_MAX_BYTES = 4_096;
@@ -89,7 +89,7 @@ export function validateNativeJqRequest(request: NativeJqRequest): NativeJqReque
   if (!Number.isFinite(request.inputBytes) || request.inputBytes < 0) {
     throw new Error("Native jq input size is invalid.");
   }
-  const authoritativeInputBytes = byteLengthOfText(request.input);
+  const authoritativeInputBytes = Buffer.byteLength(request.input, "utf8");
   if (authoritativeInputBytes > JQ_INPUT_MAX_BYTES) {
     throw new Error(`Payload too large (> ${Math.round(JQ_INPUT_MAX_BYTES / 1_000_000)} MB).`);
   }

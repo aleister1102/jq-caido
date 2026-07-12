@@ -79,10 +79,11 @@ describe("useRawPayload", () => {
     const props = computed<PropsShape>(() => ({
       raw: `{"data":"${"a".repeat(JQ_AUTO_RUN_MAX_BYTES + 100)}"}`
     }));
-    const { requiresManualRun } = useRawPayload(props);
+    const { bodyBytes, requiresManualRun } = useRawPayload(props);
     await nextTick();
 
     expect(requiresManualRun.value).toBe(true);
+    expect(bodyBytes.value).toBeNull();
   });
 
   it("does not expose an autocomplete warning for small payloads", async () => {
@@ -93,5 +94,15 @@ describe("useRawPayload", () => {
     await nextTick();
 
     expect(autocompleteWarning.value).toBe("");
+  });
+
+  it("retains bytes for auto-run sized payloads", async () => {
+    const props = computed<PropsShape>(() => ({
+      raw: "{\"foo\":\"bar\"}"
+    }));
+    const { bodyBytes } = useRawPayload(props);
+    await nextTick();
+
+    expect(bodyBytes.value).not.toBeNull();
   });
 });

@@ -41,7 +41,7 @@ describe("useJqRunner", () => {
     const state = scope.run(() =>
       useJqRunner(
         computed(() => '{"big":true}'),
-        shallowRef(new Uint8Array(JQ_AUTO_RUN_MAX_BYTES)),
+        shallowRef<Uint8Array | null>(null),
         ref(JQ_AUTO_RUN_MAX_BYTES),
         ref("."),
         ref(false),
@@ -55,6 +55,7 @@ describe("useJqRunner", () => {
     await nextTick();
 
     expect(runJqMock).not.toHaveBeenCalled();
+    expect(state.canRun.value).toBe(true);
     expect(state.requiresManualRun.value).toBe(true);
     expect(state.stderr.value).toContain("Press Run");
     scope.stop();
@@ -131,6 +132,99 @@ describe("useJqRunner", () => {
     });
     await flushMicrotasks();
 
+    expect(state.stdout.value).toBe("second");
+    scope.stop();
+  });
+
+  it("keeps loading owned by the newest generation while an older run settles", async () => {
+    const first = Promise.withResolvers<{
+      engine: "jq-wasm";
+      host: "browser";
+      inputBytes: number;
+      stdout: string;
+      stderr: string;
+      stdoutBytes: number;
+      stderrBytes: number;
+      durationMs: number;
+      exitCode: number;
+      stdoutTruncated: boolean;
+      stderrTruncated: boolean;
+    }>();
+    const second = Promise.withResolvers<{
+      engine: "jq-wasm";
+      host: "browser";
+      inputBytes: number;
+      stdout: string;
+      stderr: string;
+      stdoutBytes: number;
+      stderrBytes: number;
+      durationMs: number;
+      exitCode: number;
+      stdoutTruncated: boolean;
+      stderrTruncated: boolean;
+    }>();
+    runJqMock.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
+
+    const { useJqRunner } = await import("../useJqRunner");
+    const query = ref(".");
+    const scope = effectScope();
+    const state = scope.run(() =>
+      useJqRunner(
+        computed(() => "[]"),
+        shallowRef(new TextEncoder().encode("[]")),
+        ref(2),
+        query,
+        ref(false),
+        ref(false),
+        ref(false),
+        ref(false),
+        computed(() => false),
+      ),
+    )!;
+
+    await nextTick();
+    expect(state.isLoading.value).toBe(true);
+
+    query.value = ".next";
+    await nextTick();
+    await vi.advanceTimersByTimeAsync(300);
+    await flushMicrotasks();
+    expect(runJqMock).toHaveBeenCalledTimes(2);
+    expect(state.isLoading.value).toBe(true);
+
+    first.resolve({
+      engine: "jq-wasm",
+      host: "browser",
+      inputBytes: 2,
+      stdout: "first",
+      stderr: "",
+      stdoutBytes: 5,
+      stderrBytes: 0,
+      durationMs: 5,
+      exitCode: 0,
+      stdoutTruncated: false,
+      stderrTruncated: false,
+    });
+    await flushMicrotasks();
+
+    expect(state.isLoading.value).toBe(true);
+
+    second.resolve({
+      engine: "jq-wasm",
+      host: "browser",
+      inputBytes: 2,
+      stdout: "second",
+      stderr: "",
+      stdoutBytes: 6,
+      stderrBytes: 0,
+      durationMs: 1,
+      exitCode: 0,
+      stdoutTruncated: false,
+      stderrTruncated: false,
+    });
+    await flushMicrotasks();
+
+    expect(state.isLoading.value).toBe(false);
     expect(state.stdout.value).toBe("second");
     scope.stop();
   });
