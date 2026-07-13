@@ -17,6 +17,9 @@ export default defineConfig({
       id: "jq-frontend",
       name: "JQ Viewer",
       root: "./src/frontend",
+      backend: {
+        id: "jq-backend",
+      },
       // jq-wasm worker chunk (stable name via vite.worker.rollupOptions below).
       assets: ["./src/frontend/dist/jq.worker.js"],
       vite: {
@@ -49,6 +52,12 @@ export default defineConfig({
           },
         },
       },
+    },
+    {
+      kind: "backend",
+      id: "jq-backend",
+      name: "JQ Backend",
+      root: "./src/backend",
     },
   ],
 });

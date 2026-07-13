@@ -1,10 +1,9 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, onUnmounted, ref, watch } from "vue";
 import { useSettings } from "../composables/useSettings";
 import {
   useRawPayload,
   type PropsShape,
-  LARGE_PAYLOAD_THRESHOLD_BYTES,
 } from "../composables/useRawPayload";
 import { useJqRunner } from "../composables/useJqRunner";
 import { useOutputDisplay } from "../composables/useOutputDisplay";
@@ -17,7 +16,7 @@ const props = defineProps<PropsShape>();
 const { isCompact, isRaw, keysOnly, filterNulls, loadSettings, saveSettings } =
   useSettings();
 
-// Query is intentionally not persisted — always starts fresh with the identity filter.
+// Query is intentionally not persisted - always starts fresh with the identity filter.
 const query = ref(".");
 
 // Load persisted toggle settings before useJqRunner sets up its watchers.
@@ -25,37 +24,40 @@ loadSettings();
 
 const {
   bodyText,
+  bodyBytes,
+  bodyByteLength,
   parsedJson,
   isOversized,
-  isLargePayload,
   autocompleteWarning,
   ensureParsedJson,
-  clearParsedJson,
 } = useRawPayload(computed(() => props));
 
 const {
+  result,
   stdout,
   stderr,
   isLoading,
+  canRun,
+  requiresManualRun,
+  enginePreference,
+  nativeAvailability,
   executeJq: executeJqInternal,
 } = useJqRunner(
   bodyText,
+  bodyBytes,
+  bodyByteLength,
   query,
   isCompact,
   isRaw,
   keysOnly,
   filterNulls,
   isOversized,
-  isLargePayload,
-  clearParsedJson,
 );
 
-const noNullsWarning = computed(() => {
-  if (!filterNulls.value || !isLargePayload.value) return "";
-  return `No Nulls is disabled for payloads over ${Math.round(LARGE_PAYLOAD_THRESHOLD_BYTES / 1_000_000)} MB to keep queries responsive.`;
-});
-
-const outputDisplay = useOutputDisplay(stdout);
+const outputDisplay = useOutputDisplay(
+  stdout,
+  computed(() => result.value?.stdoutBytes ?? 0),
+);
 
 // Track copied state for Copy Query button with 2-second auto-reset
 const queryCopied = ref(false);
@@ -94,20 +96,32 @@ const requestAutocomplete = () => {
   ensureParsedJson();
 };
 
-watch(
-  () => bodyText.value,
-  () => {
-    clearParsedJson();
-  },
-);
-
 // Save settings only when the persisted flags change
 watch([isCompact, isRaw, keysOnly, filterNulls], () => {
   saveSettings();
 });
 
-onMounted(() => {
-  void executeJq();
+const engineOptions = [
+  { label: "Automatic", value: "automatic" },
+  { label: "jq-wasm", value: "jq-wasm" },
+  { label: "Native jq", value: "native" },
+] as const;
+
+const activeNativeReason = computed(() => {
+  if (enginePreference.value !== "native" || nativeAvailability.value.available) {
+    return "";
+  }
+  return nativeAvailability.value.reason ?? "Native jq is unavailable on the Caido backend host.";
+});
+
+const statusPanelClass = computed(() => {
+  if (result.value?.exitCode === 0) {
+    return "bg-amber-900/20 border-amber-500/30 text-amber-200";
+  }
+  if (result.value && result.value.exitCode !== 0) {
+    return "bg-red-900/20 border-red-500/30 text-red-200";
+  }
+  return "bg-white/5 border-white/10 text-white/80";
 });
 
 onUnmounted(() => {
@@ -124,7 +138,7 @@ onUnmounted(() => {
 
 <template>
   <div class="jq-view-container flex flex-col p-4 gap-4 overflow-hidden">
-    <div class="flex items-center gap-2">
+    <div class="flex items-center gap-2 flex-wrap">
       <JqQueryInput
         v-model="query"
         :rootJson="parsedJson"
@@ -134,11 +148,32 @@ onUnmounted(() => {
         placeholder="Enter jq query (e.g. .foo[0])"
       />
       <button
+        type="button"
+        class="px-3 py-1 bg-white/10 hover:bg-white/15 rounded text-xs transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        :disabled="!canRun || isLoading"
+        @click="executeJq"
+      >
+        {{ isLoading ? "Running..." : "Run" }}
+      </button>
+      <button
         @click="handleCopyQuery"
         class="px-3 py-1 bg-white/5 hover:bg-white/10 rounded text-xs transition-colors"
       >
         {{ queryCopied ? "✓ Copied" : "Copy Query" }}
       </button>
+      <div class="flex items-center rounded border border-white/10 overflow-hidden">
+        <button
+          v-for="option in engineOptions"
+          :key="option.value"
+          type="button"
+          class="px-3 py-1 text-xs transition-colors border-r border-white/10 last:border-r-0"
+          :class="enginePreference === option.value ? 'bg-white/15 text-white' : 'bg-transparent text-white/70 hover:bg-white/5'"
+          :title="option.value === 'native' ? activeNativeReason : ''"
+          @click="enginePreference = option.value"
+        >
+          {{ option.label }}
+        </button>
+      </div>
       <!-- v-model works correctly with the current Caido SDK (0.x) view mode host.
            Older versions had binding issues requiring explicit :checked + @change;
            revert to that pattern if a future SDK update breaks two-way binding. -->
@@ -176,14 +211,14 @@ onUnmounted(() => {
       </label>
     </div>
 
-    <div v-if="noNullsWarning" class="text-xs text-white/60 -mt-2">
-      {{ noNullsWarning }}
-    </div>
-
     <div class="flex-1 flex flex-col min-h-0 gap-2">
       <div
         v-if="stderr"
-        class="p-3 bg-red-900/20 border border-red-500/30 rounded text-red-200 text-xs font-mono whitespace-pre-wrap overflow-auto max-h-32"
+        data-testid="jq-status-panel"
+        :class="[
+          'p-3 border rounded text-xs font-mono whitespace-pre-wrap overflow-auto max-h-32',
+          statusPanelClass,
+        ]"
       >
         {{ stderr }}
       </div>
@@ -192,10 +227,19 @@ onUnmounted(() => {
         :stdout="stdout"
         :displayOutput="outputDisplay.displayOutput.value"
         :shouldHighlight="outputDisplay.shouldHighlight.value"
-        :isHighlighting="outputDisplay.isHighlighting.value"
-        :isOutputTruncated="outputDisplay.isOutputTruncated.value"
+        :enginePreference="enginePreference"
+        :resultEngine="result?.engine ?? null"
+        :resultHost="result?.host ?? null"
+        :inputBytes="result?.inputBytes ?? bodyByteLength"
+        :stdoutBytes="result?.stdoutBytes ?? 0"
+        :durationMs="result?.durationMs ?? 0"
+        :isOutputTruncated="result?.stdoutTruncated ?? false"
+        :isStderrTruncated="result?.stderrTruncated ?? false"
         :isLoading="isLoading"
         :outputCopied="outputCopied"
+        :hasRun="result !== null"
+        :requiresManualRun="requiresManualRun"
+        :outputStatus="outputDisplay.statusMessage.value"
         @copy="handleCopyOutput"
       />
     </div>

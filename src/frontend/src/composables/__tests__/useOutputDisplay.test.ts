@@ -1,59 +1,50 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import { effectScope, ref, nextTick } from "vue";
 import { useOutputDisplay } from "../useOutputDisplay";
 
 describe("useOutputDisplay", () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it("should truncate output above 500KB by default", async () => {
+  it("renders plain text without highlighting for large outputs", async () => {
     const scope = effectScope();
-    const largeOutput = "a".repeat(600 * 1024);
+    const largeOutput = "a".repeat(200_000);
     const stdout = ref(largeOutput);
-    const { displayOutput, isOutputTruncated } = scope.run(() => useOutputDisplay(stdout))!;
+    const stdoutBytes = ref(200_000);
+    const { displayOutput, shouldHighlight, statusMessage } = scope.run(() => useOutputDisplay(stdout, stdoutBytes))!;
 
-    await vi.waitFor(() => {
-      expect(displayOutput.value).toContain("[Output truncated");
-    });
+    await nextTick();
 
-    expect(isOutputTruncated.value).toBe(true);
-    expect(displayOutput.value.length).toBeLessThan(largeOutput.length);
+    expect(shouldHighlight.value).toBe(false);
+    expect(displayOutput.value).toBe(largeOutput);
+    expect(statusMessage.value).toBe("Highlighting disabled for large output.");
     scope.stop();
   });
 
-  it("should enable highlight for small output", async () => {
+  it("highlights small output once", async () => {
     const scope = effectScope();
     const stdout = ref('{"foo": "bar"}');
-    const { shouldHighlight, isHighlighting, displayOutput } = scope.run(() =>
-      useOutputDisplay(stdout),
+    const stdoutBytes = ref(stdout.value.length);
+    const { shouldHighlight, displayOutput, statusMessage } = scope.run(() =>
+      useOutputDisplay(stdout, stdoutBytes),
     )!;
 
     await nextTick();
 
     expect(shouldHighlight.value).toBe(true);
-    expect(isHighlighting.value).toBe(false);
     expect(displayOutput.value).toContain("token");
+    expect(statusMessage.value).toBe("");
     scope.stop();
   });
 
-  it("should lazy-highlight output above 100KB", async () => {
+  it("highlights outputs below the threshold", async () => {
     const scope = effectScope();
-    const midOutput = `{"items":[${'"x",'.repeat(30_000)}"y"]}`;
-    expect(midOutput.length).toBeGreaterThan(100 * 1024);
+    const output = `{"items":[${'"x",'.repeat(10_000)}"y"]}`;
+    const stdout = ref(output);
+    const stdoutBytes = ref(output.length);
+    const { shouldHighlight, displayOutput } = scope.run(() =>
+      useOutputDisplay(stdout, stdoutBytes),
+    )!;
 
-    const stdout = ref(midOutput);
-    const { shouldHighlight, displayOutput } = scope.run(() => useOutputDisplay(stdout))!;
-
-    await nextTick();
     expect(shouldHighlight.value).toBe(true);
-
-    await vi.waitFor(
-      () => {
-        expect(displayOutput.value).toContain("token");
-      },
-      { timeout: 10_000 },
-    );
+    expect(displayOutput.value).toContain("token");
     scope.stop();
   });
 });

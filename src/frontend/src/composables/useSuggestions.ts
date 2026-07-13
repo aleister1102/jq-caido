@@ -1,35 +1,16 @@
 import { ref, watch, type Ref, type ComputedRef } from "vue";
 import { getSuggestions, type Suggestion } from "../lib/jq-suggestion";
 
-
 export function useSuggestions(
   modelValue: Ref<string> | ComputedRef<string>,
-  rootJson: Ref<any> | ComputedRef<any>,
+  rootJson: Ref<unknown> | ComputedRef<unknown>,
 ) {
   const showSuggestions = ref(false);
   const selectedIndex = ref(0);
   const suggestions = ref<Suggestion[]>([]);
-  const tooLargeForSuggestions = ref(false);
-
-  const isTooLargeForSuggestions = (json: unknown): boolean => {
-    if (json == null) return false;
-    // Rough estimation if it's already an object
-    // For large JSON, we'd rather not stringify it just to check length,
-    // but the rootJson in useRawPayload is already gated by 5MB string length.
-    // Let's use a heuristic: if we have more than 10,000 keys at root, it's probably too slow.
-    if (typeof json === "object" && !Array.isArray(json)) {
-      return Object.keys(json as Record<string, unknown>).length > 10000;
-    }
-    return false;
-  };
 
   const updateSuggestions = () => {
     if (!rootJson.value) {
-      suggestions.value = [];
-      return;
-    }
-
-    if (tooLargeForSuggestions.value) {
       suggestions.value = [];
       return;
     }
@@ -38,8 +19,6 @@ export function useSuggestions(
     if (selectedIndex.value >= suggestions.value.length) selectedIndex.value = 0;
   };
 
-  tooLargeForSuggestions.value = isTooLargeForSuggestions(rootJson.value);
-
   updateSuggestions(); // initialize
 
   watch(() => modelValue.value, () => {
@@ -47,7 +26,6 @@ export function useSuggestions(
   });
 
   watch(() => rootJson.value, () => {
-    tooLargeForSuggestions.value = isTooLargeForSuggestions(rootJson.value);
     updateSuggestions();
   });
 
