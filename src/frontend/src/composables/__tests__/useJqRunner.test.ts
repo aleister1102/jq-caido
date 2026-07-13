@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { computed, effectScope, nextTick, ref, shallowRef } from "vue";
 import { JQ_AUTO_RUN_MAX_BYTES } from "../../../../shared/jqPolicy";
+import { createDeferred } from "../../test/createDeferred";
 
 const runJqMock = vi.fn();
 const cancelActiveJqRunMock = vi.fn().mockResolvedValue(undefined);
@@ -62,7 +63,7 @@ describe("useJqRunner", () => {
   });
 
   it("ignores stale results after a newer query run starts", async () => {
-    const deferred = Promise.withResolvers<{
+    const deferred = createDeferred<{
       engine: "jq-wasm";
       host: "browser";
       inputBytes: number;
@@ -137,7 +138,7 @@ describe("useJqRunner", () => {
   });
 
   it("keeps loading owned by the newest generation while an older run settles", async () => {
-    const first = Promise.withResolvers<{
+    const first = createDeferred<{
       engine: "jq-wasm";
       host: "browser";
       inputBytes: number;
@@ -150,7 +151,7 @@ describe("useJqRunner", () => {
       stdoutTruncated: boolean;
       stderrTruncated: boolean;
     }>();
-    const second = Promise.withResolvers<{
+    const second = createDeferred<{
       engine: "jq-wasm";
       host: "browser";
       inputBytes: number;
