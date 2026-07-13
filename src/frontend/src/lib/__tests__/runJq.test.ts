@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { NativeJqAvailability } from "../../../../shared/jqContract";
 import { JQ_NATIVE_AVAILABILITY_CACHE_TTL_MS } from "../../../../shared/jqPolicy";
+import { createDeferred } from "../../test/createDeferred";
 
 type WorkerPlan =
   | { kind: "hang" }
@@ -299,8 +300,8 @@ describe("runJq", () => {
   });
 
   it("waits for native cancellation before starting the replacement run", async () => {
-    const firstNative = Promise.withResolvers<unknown>();
-    const cancelNative = Promise.withResolvers<boolean>();
+    const firstNative = createDeferred<unknown>();
+    const cancelNative = createDeferred<boolean>();
     const nativeResult = {
       engine: "native",
       host: "caido-backend-host",
@@ -361,7 +362,7 @@ describe("runJq", () => {
   });
 
   it("caps the native cancellation wait before starting a replacement run", async () => {
-    const firstNative = Promise.withResolvers<unknown>();
+    const firstNative = createDeferred<unknown>();
     const nativeResult = {
       engine: "native",
       host: "caido-backend-host",
@@ -546,8 +547,8 @@ describe("runJq", () => {
 
   it("ignores late native RPC completion after the frontend watchdog times out", async () => {
     const { computeJqTimeout, runJq, setCaido } = await loadRunJqModule();
-    const firstNative = Promise.withResolvers<unknown>();
-    const secondNative = Promise.withResolvers<unknown>();
+    const firstNative = createDeferred<unknown>();
+    const secondNative = createDeferred<unknown>();
     const bodyBytes = new TextEncoder().encode("null");
     const secondResult = {
       engine: "native",
