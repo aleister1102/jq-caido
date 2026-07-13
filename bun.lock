@@ -5,12 +5,9 @@
     "": {
       "name": "caido-jq",
       "dependencies": {
-        "@caido/primevue": "^0.1.0",
         "@caido/sdk-frontend": "^0.55.3",
         "jq-wasm": "3.0.0-jq-1.8.2",
         "lodash-es": "^4.17.21",
-        "primeicons": "^6.0.1",
-        "primevue": "4.1.0",
         "prismjs": "^1.30.0",
         "vue": "^3.5.13",
       },
@@ -44,8 +41,6 @@
     "@caido-community/dev": ["@caido-community/dev@0.1.6", "", { "dependencies": { "@caido/plugin-manifest": "0.3.0", "chalk": "5.4.1", "chokidar": "4.0.3", "commander": "13.0.0", "express": "5.0.0", "glob": "11.0.1", "jiti": "2.4.2", "jszip": "3.10.1", "tsup": "8.3.5", "vite": "6.0.7", "ws": "8.18.0", "zod": "3.24.1" }, "bin": { "caido-dev": "dist/cli.js" } }, "sha512-WAWmPdEahh4e24sO4crt+nvqZryhKsy4yP5QYGoyUKqEYVAct5S/lI9fHdoIRQPJDSds3ayB6jgMKAlifd8BAg=="],
 
     "@caido/plugin-manifest": ["@caido/plugin-manifest@0.3.0", "", { "dependencies": { "ajv": "^8.17.0" } }, "sha512-HRGHf65K2sfSdaEUwkCNDlurJ4zL0bOUg/Db4u6CrwjTTzmg2gOzP6SzLRj+69gWmxOm5LUjhInNHaMIRmQkHw=="],
-
-    "@caido/primevue": ["@caido/primevue@0.1.15", "", { "peerDependencies": { "primevue": "4.1.0" } }, "sha512-kDn6Wa2H4CH+f174SV+YfPWcj116q3l9GT9GR7ckjPl7ORMJCtAMyCVnKXL942j2vKbFPgj38itDrx9FDuP6Fg=="],
 
     "@caido/quickjs-types": ["@caido/quickjs-types@0.25.4", "", {}, "sha512-U7Cvi4aHoCN8T2JB+Az3ArqQ3MUK0PRCtBm5Sq1rfqaJ9NymAkh3O29q77Keh3G/zINq2WTkKZq5qJlvrQNl+Q=="],
 
@@ -138,14 +133,6 @@
     "@one-ini/wasm": ["@one-ini/wasm@0.1.1", "", {}, "sha512-XuySG1E38YScSJoMlqovLru4KTUNSjgVTIjyh7qMX6aNN5HY5Ct5LhRJdxO79JtTzKfzV/bnWpz+zquYrISsvw=="],
 
     "@pkgjs/parseargs": ["@pkgjs/parseargs@0.11.0", "", {}, "sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg=="],
-
-    "@primeuix/styled": ["@primeuix/styled@0.2.0", "", { "dependencies": { "@primeuix/utils": "^0.2.0" } }, "sha512-3Q6bDrmwTW88tzJsFIFenC0VyXLj0+/wYw+TZnJ/4CCDfehR4WfTs4EZdpuFtYqvmbpJ6zWXAiwSCNdSYTZkyA=="],
-
-    "@primeuix/utils": ["@primeuix/utils@0.2.0", "", {}, "sha512-AaDIeRFlsbkVTk2s0mlEjnGSLi31X669NVwo+n+AVAnBdDiQznjipNTpHbOobVBtjOKZize74PChK6uoaSBRUw=="],
-
-    "@primevue/core": ["@primevue/core@4.1.0", "", { "dependencies": { "@primeuix/styled": "^0.2.0", "@primeuix/utils": "^0.2.0" }, "peerDependencies": { "vue": "^3.0.0" } }, "sha512-YulYm+PtoYSyLv/pNl3oyjvN+C9Ba/RSpW3bZAVkMRz9SWSA6lj2QaN+/9uxhokWZPL63zCHsHzIBV5YMvZshQ=="],
-
-    "@primevue/icons": ["@primevue/icons@4.1.0", "", { "dependencies": { "@primeuix/utils": "^0.2.0", "@primevue/core": "4.1.0" } }, "sha512-npY8Jy3HX1+Qbv1jCRdAevOcOj355b0x1Wmepa7omhgQFIUVs2o18HGohYml4HJpmEAu6aKnUIhhodFMuglMeQ=="],
 
     "@rollup/rollup-android-arm-eabi": ["@rollup/rollup-android-arm-eabi@4.55.1", "", { "os": "android", "cpu": "arm" }, "sha512-9R0DM/ykwfGIlNu6+2U09ga0WXeZ9MRC2Ter8jnz8415VbuIykVuc6bhdrbORFZANDmTDvq26mJrEVTl8TdnDg=="],
 
@@ -526,10 +513,6 @@
     "postcss": ["postcss@8.5.6", "", { "dependencies": { "nanoid": "^3.3.11", "picocolors": "^1.1.1", "source-map-js": "^1.2.1" } }, "sha512-3Ybi1tAuwAP9s0r1UQ2J4n5Y0G05bJkpUIO0/bI9MhwmD70S5aTWbXGBwxHrelT+XM1k6dM0pk+SwNkpTRN7Pg=="],
 
     "postcss-load-config": ["postcss-load-config@6.0.1", "", { "dependencies": { "lilconfig": "^3.1.1" }, "peerDependencies": { "jiti": ">=1.21.0", "postcss": ">=8.0.9", "tsx": "^4.8.1", "yaml": "^2.4.2" }, "optionalPeers": ["jiti", "postcss", "tsx", "yaml"] }, "sha512-oPtTM4oerL+UXmx+93ytZVN82RrlY/wPUV8IeDxFrzIjXOLF1pN+EmKPLbubvKHT2HC20xXsCAH2Z+CKV6Oz/g=="],
-
-    "primeicons": ["primeicons@6.0.1", "", {}, "sha512-KDeO94CbWI4pKsPnYpA1FPjo79EsY9I+M8ywoPBSf9XMXoe/0crjbUK7jcQEDHuc0ZMRIZsxH3TYLv4TUtHmAA=="],
-
-    "primevue": ["primevue@4.1.0", "", { "dependencies": { "@primeuix/styled": "^0.2.0", "@primeuix/utils": "^0.2.0", "@primevue/core": "4.1.0", "@primevue/icons": "4.1.0" } }, "sha512-iR/RysaTnZeIG3UVxdhazU7MA8nEODOpHk8WSINwYU0WMsA/ZghbchHOD5a/LYuLuZa3V03j7mX4LMKroeV+ag=="],
 
     "prismjs": ["prismjs@1.30.0", "", {}, "sha512-DEvV2ZF2r2/63V+tK8hQvrR2ZGn10srHbXviTlcv7Kpzw8jWiNTqbVgjO3IY8RxrrOUF8VPMQQFysYYYv0YZxw=="],
 

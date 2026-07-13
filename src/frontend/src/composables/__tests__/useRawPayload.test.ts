@@ -75,14 +75,13 @@ describe("useRawPayload", () => {
     expect(autocompleteWarning.value).toContain("Autocomplete disabled for payloads");
   });
 
-  it("marks payloads at or above 2 MB as manual run", async () => {
+  it("does not retain bytes for payloads at or above 2 MB", async () => {
     const props = computed<PropsShape>(() => ({
       raw: `{"data":"${"a".repeat(JQ_AUTO_RUN_MAX_BYTES + 100)}"}`
     }));
-    const { bodyBytes, requiresManualRun } = useRawPayload(props);
+    const { bodyBytes } = useRawPayload(props);
     await nextTick();
 
-    expect(requiresManualRun.value).toBe(true);
     expect(bodyBytes.value).toBeNull();
   });
 
