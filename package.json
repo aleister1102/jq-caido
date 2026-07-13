@@ -12,12 +12,9 @@
     "watch": "caido-dev watch"
   },
   "dependencies": {
-    "@caido/primevue": "^0.1.0",
     "@caido/sdk-frontend": "^0.55.3",
     "jq-wasm": "3.0.0-jq-1.8.2",
     "lodash-es": "^4.17.21",
-    "primeicons": "^6.0.1",
-    "primevue": "4.1.0",
     "prismjs": "^1.30.0",
     "vue": "^3.5.13"
   },

@@ -78,13 +78,16 @@ It generates `1 MB`, `6 MB`, and `20 MB` payloads in memory and runs two scenari
 
 The script prints machine, Caido, `jq`, and `jq-wasm` version information before the timing table. Results are environment-dependent and should be treated as local reference data, not guarantees.
 
-Reference local CLI run on 2026-07-13:
+Reference local CLI medians from three runs on 2026-07-13 after the PR 2 cleanup:
 
 - Machine: `darwin 25.5.0 arm64`, `Apple M4 Max`
+- Bun: `1.3.14`
+- Node: `24.3.0`
 - Caido: `n/a (benchmark runs outside Caido)`
 - `jq-wasm`: `jq-1.8.2`
 - `jq`: `jq-1.7.1-apple`
-- `20 MB` `.items[0:10]`: `jq-wasm 183.3 ms`, `native jq 173.4 ms`
+- `20 MB` `.items[0:10]`: `jq-wasm 273.5 ms`, `native jq 249.8 ms`
+- `20 MB` `.`: `jq-wasm 679.3 ms`, `native jq 1118.7 ms`
 
 ## Development
 

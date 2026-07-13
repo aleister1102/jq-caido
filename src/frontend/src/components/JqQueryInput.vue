@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from "vue";
-import { useClickOutside } from "../composables/useClickOutside";
+import { ref, computed, onMounted, onUnmounted } from "vue";
 import { useSuggestions } from "../composables/useSuggestions";
 import SuggestionDropdown from "./SuggestionDropdown.vue";
 import type { Suggestion } from "../lib/jq-suggestion";
@@ -37,7 +36,14 @@ const {
   computed(() => props.rootJson),
 );
 
-useClickOutside(containerRef, hideSuggestionsDropdown);
+const handleWindowClick = (event: MouseEvent) => {
+  if (containerRef.value && !containerRef.value.contains(event.target as Node)) {
+    hideSuggestionsDropdown();
+  }
+};
+
+onMounted(() => window.addEventListener("click", handleWindowClick));
+onUnmounted(() => window.removeEventListener("click", handleWindowClick));
 
 const onInput = (e: Event) => {
   const target = e.target as HTMLInputElement;
@@ -129,4 +135,3 @@ const onKeyDown = (e: KeyboardEvent) => {
   font-family: var(--font-mono, monospace);
 }
 </style>
-
