@@ -1,7 +1,12 @@
-const encoder = new TextEncoder();
+let encoder: TextEncoder | null = null;
+
+function getEncoder(): TextEncoder {
+  encoder ??= new TextEncoder();
+  return encoder;
+}
 
 export function byteLengthOfText(text: string): number {
-  return encoder.encode(text).byteLength;
+  return getEncoder().encode(text).byteLength;
 }
 
 export function encodeTextForTransfer(text: string, maxBytes: number): {
@@ -10,7 +15,7 @@ export function encodeTextForTransfer(text: string, maxBytes: number): {
   truncated: boolean;
 } {
   const output = new Uint8Array(maxBytes);
-  const { read, written } = encoder.encodeInto(text, output);
+  const { read, written } = getEncoder().encodeInto(text, output);
   return {
     buffer: output.buffer.slice(0, written),
     bytes: written,

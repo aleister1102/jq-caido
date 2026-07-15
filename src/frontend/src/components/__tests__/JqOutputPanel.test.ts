@@ -29,11 +29,13 @@ describe("JqOutputPanel", () => {
             },
         });
 
-        expect(wrapper.text()).toContain("Engine:");
+        expect(wrapper.text()).toContain("Engine");
         expect(wrapper.text()).toContain("Native jq");
-        expect(wrapper.text()).toContain("Host:");
-        expect(wrapper.text()).toContain("caido-backend-host");
-        expect(wrapper.text()).toContain("Time:");
+        expect(wrapper.text()).toContain("Mode");
+        expect(wrapper.text()).toContain("Auto-select");
+        expect(wrapper.text()).toContain("Host");
+        expect(wrapper.text()).toContain("Caido backend");
+        expect(wrapper.text()).toContain("Time");
     });
 
     it("shows the selected preference before any result exists", () => {
@@ -46,9 +48,11 @@ describe("JqOutputPanel", () => {
             },
         });
 
-        expect(wrapper.text()).toContain("Mode:");
-        expect(wrapper.text()).toContain("Automatic");
-        expect(wrapper.text()).not.toContain("Host:");
+        expect(wrapper.text()).toContain("Mode");
+        expect(wrapper.text()).toContain("Auto-select");
+        expect(wrapper.text()).toContain("Engine");
+        expect(wrapper.text()).toContain("Not run");
+        expect(wrapper.findAll(".jq-stat")).toHaveLength(6);
     });
 
     it("renders truncated copy text when output is capped", () => {
@@ -85,6 +89,37 @@ describe("JqOutputPanel", () => {
 
         expect(wrapper.text()).toContain("Stderr truncated");
         expect(wrapper.text()).toContain("Highlighting disabled for large output.");
+    });
+
+    it("does not add template indentation to output", () => {
+        const displayOutput = '{\n  "enabled": true\n}';
+        const wrapper = mount(JqOutputPanel, {
+            props: {
+                ...baseProps,
+                displayOutput,
+            },
+        });
+
+        expect(wrapper.get("pre").element.textContent).toBe(displayOutput);
+    });
+
+    it("places readable stats and copy action in a footer below the output", () => {
+        const wrapper = mount(JqOutputPanel, {
+            props: {
+                ...baseProps,
+            },
+        });
+
+        const footer = wrapper.get('[data-testid="jq-output-footer"]');
+        expect(footer.classes()).toContain("items-center");
+        expect(wrapper.get("pre").element.nextElementSibling).toBe(footer.element);
+        const stats = footer.get('[data-testid="jq-output-stats"]');
+        expect(stats.classes()).toContain("jq-output-stats");
+        expect(stats.classes()).not.toContain("grid");
+        expect(stats.classes()).not.toContain("uppercase");
+        const copyButton = footer.get("button");
+        expect(copyButton.classes()).toContain("shrink-0");
+        expect(copyButton.classes()).toContain("jq-copy-output");
     });
 
     it("emits copy event when copy button clicked", async () => {

@@ -33,7 +33,7 @@ const selectedPreferenceLabel = computed(() => {
     case "jq-wasm":
       return "jq-wasm";
     default:
-      return "Automatic";
+      return "Auto-select";
   }
 });
 
@@ -48,8 +48,21 @@ const resultEngineLabel = computed(() => {
   }
 });
 
-const modeHeading = computed(() => (props.hasRun ? "Engine" : "Mode"));
-const modeValue = computed(() => (props.hasRun ? resultEngineLabel.value : selectedPreferenceLabel.value));
+const currentEngineLabel = computed(() => {
+  if (props.hasRun) return resultEngineLabel.value;
+  return props.isLoading ? "Running" : "Not run";
+});
+
+const resultHostLabel = computed(() => {
+  switch (props.resultHost) {
+    case "browser":
+      return "Browser";
+    case "caido-backend-host":
+      return "Caido backend";
+    default:
+      return "-";
+  }
+});
 
 const copyLabel = computed(() => {
   if (props.isOutputTruncated) {
@@ -60,37 +73,63 @@ const copyLabel = computed(() => {
 </script>
 
 <template>
-  <div class="flex-1 relative min-h-0 bg-black/20 border border-white/5 rounded overflow-hidden flex flex-col">
-    <div class="px-4 py-2 border-b border-white/5 text-[10px] uppercase tracking-wider text-white/50 flex gap-3 flex-wrap">
-      <span>{{ modeHeading }}: {{ modeValue }}</span>
-      <span v-if="hasRun && resultHost">Host: {{ resultHost }}</span>
-      <span v-if="inputBytes > 0">Input: {{ formatBytes(inputBytes) }}</span>
-      <span v-if="hasRun">Output: {{ formatBytes(stdoutBytes) }}</span>
-      <span v-if="hasRun">Time: {{ Math.round(durationMs) }} ms</span>
-      <span v-if="isOutputTruncated">Truncated</span>
-      <span v-if="isStderrTruncated">Stderr truncated</span>
-      <span v-if="outputStatus">{{ outputStatus }}</span>
-      <span v-if="requiresManualRun && !hasRun">Manual run</span>
-    </div>
-    <div class="absolute top-12 right-2 flex gap-2 z-10 items-center">
-      <button
-        v-if="stdout"
-        type="button"
-        class="px-2 py-1 bg-white/5 hover:bg-white/10 rounded text-[10px] uppercase tracking-wider opacity-60 hover:opacity-100 transition-all"
-        @click="emit('copy')"
-      >
-        {{ copyLabel }}
-      </button>
-    </div>
+  <div class="flex-1 min-h-0 bg-black/20 border border-white/5 rounded overflow-hidden flex flex-col">
     <pre
       :class="[
         'flex-1 p-4 m-0 overflow-auto text-sm font-mono whitespace-pre-wrap',
         shouldHighlight ? 'language-json' : '',
       ]"
+    ><code v-if="shouldHighlight" v-html="displayOutput || (isLoading ? 'Processing...' : 'No output')"></code><code v-else>{{ displayOutput || (isLoading ? 'Processing...' : 'No output') }}</code></pre>
+    <div
+      data-testid="jq-output-footer"
+      class="px-4 py-2.5 border-t border-white/5 flex items-center justify-between gap-4"
     >
-      <code v-if="shouldHighlight" v-html="displayOutput || (isLoading ? 'Processing...' : 'No output')"></code>
-      <code v-else>{{ displayOutput || (isLoading ? 'Processing...' : 'No output') }}</code>
-    </pre>
+      <div class="min-w-0 flex-1">
+        <div data-testid="jq-output-stats" class="jq-output-stats text-white/75">
+          <span class="jq-stat">
+            <span class="jq-stat-label">Mode:</span>
+            <span class="jq-stat-value truncate font-mono" :title="selectedPreferenceLabel">{{ selectedPreferenceLabel }}</span>
+          </span>
+          <span class="jq-stat">
+            <span class="jq-stat-label">Engine:</span>
+            <span class="jq-stat-value jq-engine-value truncate font-mono" :title="currentEngineLabel">{{ currentEngineLabel }}</span>
+          </span>
+          <span class="jq-stat">
+            <span class="jq-stat-label">Host:</span>
+            <span class="jq-stat-value truncate font-mono" :title="resultHostLabel">{{ resultHostLabel }}</span>
+          </span>
+          <span class="jq-stat">
+            <span class="jq-stat-label">Input:</span>
+            <span class="jq-stat-value font-mono tabular-nums">{{ formatBytes(inputBytes) }}</span>
+          </span>
+          <span class="jq-stat">
+            <span class="jq-stat-label">Output:</span>
+            <span class="jq-stat-value font-mono tabular-nums">{{ hasRun ? formatBytes(stdoutBytes) : "-" }}</span>
+          </span>
+          <span class="jq-stat">
+            <span class="jq-stat-label">Time:</span>
+            <span class="jq-stat-value font-mono tabular-nums">{{ hasRun ? `${Math.round(durationMs)} ms` : "-" }}</span>
+          </span>
+        </div>
+        <div
+          v-if="isOutputTruncated || isStderrTruncated || outputStatus || (requiresManualRun && !hasRun)"
+          class="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-amber-300"
+        >
+          <span v-if="isOutputTruncated">Truncated</span>
+          <span v-if="isStderrTruncated">Stderr truncated</span>
+          <span v-if="outputStatus">{{ outputStatus }}</span>
+          <span v-if="requiresManualRun && !hasRun">Manual run</span>
+        </div>
+      </div>
+      <button
+        v-if="stdout"
+        type="button"
+        class="jq-copy-output shrink-0 px-2.5 py-1 rounded text-[11px] font-medium text-white transition-colors"
+        @click="emit('copy')"
+      >
+        {{ copyLabel }}
+      </button>
+    </div>
   </div>
 </template>
 
@@ -104,6 +143,42 @@ pre {
 
 pre code {
   user-select: text;
+}
+
+.jq-output-stats {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  overflow-x: auto;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.jq-stat {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.25rem;
+  flex: none;
+}
+
+.jq-stat-label {
+  color: rgba(255, 255, 255, 0.48);
+}
+
+.jq-stat-value {
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.jq-engine-value {
+  color: #7dd3fc;
+}
+
+.jq-copy-output {
+  background-color: #0284c7;
+}
+
+.jq-copy-output:hover {
+  background-color: #0ea5e9;
 }
 
 pre::selection,

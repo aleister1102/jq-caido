@@ -6,7 +6,7 @@ Inspired by [burp-jq](https://github.com/synacktiv/burp-jq) (Synacktiv).
 
 ## Features
 
-- Interactive `jq` queries with **Automatic**, **jq-wasm**, and **Native jq** engine controls.
+- Interactive `jq` queries with **Auto-select**, **jq-wasm**, and **Native jq** engine controls.
 - `jq-wasm` upgraded to `3.0.0-jq-1.8.2`, using the inline build so the packaged worker does not need to resolve a separate `.wasm` URL.
 - Optional backend `jq` execution on the **Caido backend host** when `jq` is available on `PATH`.
 - Autocomplete for smaller payloads, with large-payload parsing disabled before it becomes expensive.
@@ -17,7 +17,7 @@ Inspired by [burp-jq](https://github.com/synacktiv/burp-jq) (Synacktiv).
 
 - Auto-run is enabled only below `2,000,000` bytes.
 - Autocomplete parsing is enabled only below `4,000,000` bytes.
-- Automatic mode prefers **Native jq** at `10,000,000` bytes and above when backend `jq --version` succeeds.
+- Auto-select mode prefers **Native jq** at `10,000,000` bytes and above when backend `jq --version` succeeds.
 - Syntax highlighting runs only below `150,000` output bytes.
 - `stdout` is capped at `512 KiB`; `stderr` is capped at `64 KiB`.
 - Inputs above `50,000,000` bytes are rejected.
@@ -30,9 +30,9 @@ Native mode is optional. To enable it:
 
 1. Install `jq` on the machine running the Caido backend.
 2. Make sure `jq` is available on `PATH` for Caido's backend process.
-3. Select **Native jq**, or leave the plugin on **Automatic** for `10 MB+` payloads.
+3. Select **Native jq**, or leave the plugin on **Auto-select** for `10 MB+` payloads.
 
-If **Native jq** is selected explicitly and unavailable, the plugin returns a readable error instead of silently switching engines. In **Automatic** mode, it falls back to `jq-wasm`.
+If **Native jq** is selected explicitly and unavailable, the plugin returns a readable error instead of silently switching engines. In **Auto-select** mode, it falls back to `jq-wasm`.
 
 ## Relationship to [Panes](https://github.com/caido-community/Panes)
 

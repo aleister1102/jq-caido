@@ -22,7 +22,7 @@ class FakeReadable extends EventEmitter {
 }
 
 class FakeChild extends EventEmitter {
-  stdin = { end: vi.fn() };
+  stdin = { write: vi.fn(), end: vi.fn() };
   stdout = new FakeReadable();
   stderr = new FakeReadable();
   closeCode: number | null = null;
@@ -120,6 +120,7 @@ describe("nativeJq", () => {
       child.emit("close", 0);
     });
     const activeTasks = new Map<string, NativeTaskState>();
+    const spawnFn = vi.fn(() => child as never);
 
     const result = await runNativeJqTask({
       taskId: "task-order",
@@ -128,10 +129,15 @@ describe("nativeJq", () => {
       query: ".",
       flags: [],
       timeoutMs: 10_000,
-    }, activeTasks, () => child as never);
+    }, activeTasks, spawnFn as never);
 
     expect(result.stdout).toBe("ok");
     expect(result.inputBytes).toBe(Buffer.byteLength("{}"));
+    expect(child.stdin.write).toHaveBeenCalledWith("{}");
+    expect(child.stdin.end).toHaveBeenCalledWith();
+    expect(spawnFn).toHaveBeenCalledWith("jq", ["."], {
+      stdio: ["pipe", "pipe", "pipe"],
+    });
   });
 
   it("times out jq --version probes and returns an unavailable reason", async () => {
