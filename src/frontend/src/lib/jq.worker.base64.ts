@@ -11,6 +11,10 @@ const decodeBase64 = (base64: string): Uint8Array => {
   return output;
 };
 
-if (!(Uint8Array as Uint8ArrayWithFromBase64).fromBase64) {
-  (Uint8Array as Uint8ArrayWithFromBase64).fromBase64 = (base64: string) => decodeBase64(base64);
-}
+export const installBase64Polyfill = (): void => {
+  if (!(Uint8Array as Uint8ArrayWithFromBase64).fromBase64) {
+    (Uint8Array as Uint8ArrayWithFromBase64).fromBase64 = (base64: string) => decodeBase64(base64);
+  }
+};
+
+installBase64Polyfill();
