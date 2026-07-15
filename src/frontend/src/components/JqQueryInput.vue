@@ -105,7 +105,7 @@ const onKeyDown = (e: KeyboardEvent) => {
 </script>
 
 <template>
-  <div ref="containerRef" class="jq-query-input-container relative flex-1">
+  <div ref="containerRef" class="jq-query-input-container relative w-full min-w-0">
     <input
       ref="inputRef"
       :value="modelValue"

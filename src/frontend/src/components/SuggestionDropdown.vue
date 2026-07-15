@@ -49,12 +49,12 @@ watch(
       @click="emit('select', suggestion)"
       @mouseover="emit('hover', index)"
       :class="[
-        'px-3 py-2 text-sm cursor-pointer flex items-center justify-between transition-colors w-full text-left',
+        'px-3 py-2 text-sm cursor-pointer flex items-center justify-between gap-2 transition-colors w-full text-left whitespace-nowrap',
         index === selectedIndex ? 'bg-white/10 text-white' : 'text-white/60'
       ]"
     >
-      <span>{{ suggestion.text }}</span>
-      <span class="text-[10px] uppercase opacity-40 px-1 border border-white/10 rounded">
+      <span class="min-w-0 flex-1 truncate" :title="suggestion.text">{{ suggestion.text }}</span>
+      <span class="text-[10px] uppercase opacity-40 px-1 border border-white/10 rounded shrink-0">
         {{ suggestion.type === 'index' ? 'index' : suggestion.dataType }}
       </span>
     </button>

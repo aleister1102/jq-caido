@@ -138,77 +138,81 @@ onUnmounted(() => {
 
 <template>
   <div class="jq-view-container flex flex-col p-4 gap-4 overflow-hidden">
-    <div class="flex items-center gap-2 flex-wrap">
-      <JqQueryInput
-        v-model="query"
-        :rootJson="parsedJson"
-        :autocompleteWarning="autocompleteWarning"
-        @requestAutocomplete="requestAutocomplete"
-        @submit="executeJq"
-        placeholder="Enter jq query (e.g. .foo[0])"
-      />
-      <button
-        type="button"
-        class="px-3 py-1 bg-white/10 hover:bg-white/15 rounded text-xs transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-        :disabled="!canRun || isLoading"
-        @click="executeJq"
-      >
-        {{ isLoading ? "Running..." : "Run" }}
-      </button>
-      <button
-        @click="handleCopyQuery"
-        class="px-3 py-1 bg-white/5 hover:bg-white/10 rounded text-xs transition-colors"
-      >
-        {{ queryCopied ? "✓ Copied" : "Copy Query" }}
-      </button>
-      <div class="flex items-center rounded border border-white/10 overflow-hidden">
-        <button
-          v-for="option in engineOptions"
-          :key="option.value"
-          type="button"
-          class="px-3 py-1 text-xs transition-colors border-r border-white/10 last:border-r-0"
-          :class="enginePreference === option.value ? 'bg-white/15 text-white' : 'bg-transparent text-white/70 hover:bg-white/5'"
-          :title="option.value === 'native' ? activeNativeReason : ''"
-          @click="enginePreference = option.value"
-        >
-          {{ option.label }}
-        </button>
+    <div class="flex flex-col gap-2">
+      <div class="jq-query-row flex items-center gap-2">
+        <JqQueryInput
+          v-model="query"
+          :rootJson="parsedJson"
+          :autocompleteWarning="autocompleteWarning"
+          @requestAutocomplete="requestAutocomplete"
+          @submit="executeJq"
+          placeholder="Enter jq query (e.g. .foo[0])"
+        />
       </div>
-      <!-- v-model works correctly with the current Caido SDK (0.x) view mode host.
-           Older versions had binding issues requiring explicit :checked + @change;
-           revert to that pattern if a future SDK update breaks two-way binding. -->
-      <label class="flex items-center gap-2 text-xs cursor-pointer select-none">
-        <input
-          type="checkbox"
-          v-model="isCompact"
-          class="rounded bg-transparent border-white/10"
-        />
-        Compact
-      </label>
-      <label class="flex items-center gap-2 text-xs cursor-pointer select-none">
-        <input
-          type="checkbox"
-          v-model="isRaw"
-          class="rounded bg-transparent border-white/10"
-        />
-        Raw
-      </label>
-      <label class="flex items-center gap-2 text-xs cursor-pointer select-none">
-        <input
-          type="checkbox"
-          v-model="keysOnly"
-          class="rounded bg-transparent border-white/10"
-        />
-        Keys
-      </label>
-      <label class="flex items-center gap-2 text-xs cursor-pointer select-none">
-        <input
-          type="checkbox"
-          v-model="filterNulls"
-          class="rounded bg-transparent border-white/10"
-        />
-        No Nulls
-      </label>
+      <div class="jq-controls-row flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          class="px-3 py-1 bg-white/10 hover:bg-white/15 rounded text-xs transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          :disabled="!canRun || isLoading"
+          @click="executeJq"
+        >
+          {{ isLoading ? "Running..." : "Run" }}
+        </button>
+        <button
+          @click="handleCopyQuery"
+          class="px-3 py-1 bg-white/5 hover:bg-white/10 rounded text-xs transition-colors"
+        >
+          {{ queryCopied ? "✓ Copied" : "Copy Query" }}
+        </button>
+        <div class="flex items-center rounded border border-white/10 overflow-hidden">
+          <button
+            v-for="option in engineOptions"
+            :key="option.value"
+            type="button"
+            class="px-3 py-1 text-xs transition-colors border-r border-white/10 last:border-r-0"
+            :class="enginePreference === option.value ? 'bg-white/15 text-white' : 'bg-transparent text-white/70 hover:bg-white/5'"
+            :title="option.value === 'native' ? activeNativeReason : ''"
+            @click="enginePreference = option.value"
+          >
+            {{ option.label }}
+          </button>
+        </div>
+        <!-- v-model works correctly with the current Caido SDK (0.x) view mode host.
+             Older versions had binding issues requiring explicit :checked + @change;
+             revert to that pattern if a future SDK update breaks two-way binding. -->
+        <label class="flex items-center gap-2 text-xs cursor-pointer select-none">
+          <input
+            type="checkbox"
+            v-model="isCompact"
+            class="rounded bg-transparent border-white/10"
+          />
+          Compact
+        </label>
+        <label class="flex items-center gap-2 text-xs cursor-pointer select-none">
+          <input
+            type="checkbox"
+            v-model="isRaw"
+            class="rounded bg-transparent border-white/10"
+          />
+          Raw
+        </label>
+        <label class="flex items-center gap-2 text-xs cursor-pointer select-none">
+          <input
+            type="checkbox"
+            v-model="keysOnly"
+            class="rounded bg-transparent border-white/10"
+          />
+          Keys
+        </label>
+        <label class="flex items-center gap-2 text-xs cursor-pointer select-none">
+          <input
+            type="checkbox"
+            v-model="filterNulls"
+            class="rounded bg-transparent border-white/10"
+          />
+          No Nulls
+        </label>
+      </div>
     </div>
 
     <div class="flex-1 flex flex-col min-h-0 gap-2">
