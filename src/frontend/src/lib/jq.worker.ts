@@ -1,3 +1,4 @@
+import "./jq.worker.base64";
 import { loadJq, type Jq } from "jq-wasm/inline";
 import type { WorkerJqRequest, WorkerJqSuccess } from "../../../shared/jqContract";
 import { JQ_BROWSER_HOST, JQ_STDERR_MAX_BYTES, JQ_STDOUT_MAX_BYTES } from "../../../shared/jqPolicy";

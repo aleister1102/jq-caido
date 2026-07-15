@@ -62,7 +62,7 @@ vi.mock("../../lib/clipboard", () => ({
 
 vi.mock("../../components/JqQueryInput.vue", () => ({
   default: {
-    template: "<div />",
+    template: "<div data-testid=\"jq-query-input\" />",
   },
 }));
 
@@ -105,5 +105,40 @@ describe("JqViewMode", () => {
 
     const panel = wrapper.get('[data-testid="jq-status-panel"]');
     expect(panel.classes()).toContain("bg-red-900/20");
+  });
+
+  it("renders query row and controls row as distinct siblings in order", async () => {
+    const { default: JqViewMode } = await import("../JqViewMode.vue");
+    const wrapper = mount(JqViewMode, {
+      props: {
+        raw: "{}",
+      },
+    });
+
+    const queryRow = wrapper.find(".jq-query-row");
+    const controlsRow = wrapper.find(".jq-controls-row");
+    expect(queryRow.exists()).toBe(true);
+    expect(controlsRow.exists()).toBe(true);
+
+    const queryInput = queryRow.find('[data-testid="jq-query-input"]');
+    expect(queryInput.exists()).toBe(true);
+    expect(queryRow.element.children).toHaveLength(1);
+    expect(queryRow.element.firstElementChild).toBe(queryInput.element);
+
+    const parent = queryRow.element.parentElement;
+    expect(parent).not.toBeNull();
+    if (parent) {
+      const rows = Array.from(parent.children);
+      const queryIndex = rows.indexOf(queryRow.element);
+      const controlsIndex = rows.indexOf(controlsRow.element);
+      expect(queryIndex).toBeGreaterThan(-1);
+      expect(controlsIndex).toBeGreaterThan(-1);
+      expect(queryIndex).toBeLessThan(controlsIndex);
+    }
+
+    expect(controlsRow.classes()).toContain("flex-wrap");
+    const controlButtonLabels = controlsRow.findAll("button").map((button) => button.text().trim());
+    expect(controlButtonLabels).toContain("Run");
+    expect(controlButtonLabels).toContain("Copy Query");
   });
 });
