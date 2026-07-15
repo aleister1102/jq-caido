@@ -102,9 +102,13 @@ watch([isCompact, isRaw, keysOnly, filterNulls], () => {
 });
 
 const engineOptions = [
-  { label: "Automatic", value: "automatic" },
-  { label: "jq-wasm", value: "jq-wasm" },
-  { label: "Native jq", value: "native" },
+  {
+    label: "Auto-select",
+    value: "automatic",
+    title: "Uses Native jq for inputs 10 MB and above when available; otherwise jq-wasm.",
+  },
+  { label: "jq-wasm", value: "jq-wasm", title: "Runs jq in the browser via WebAssembly." },
+  { label: "Native jq", value: "native", title: "Runs jq on the Caido backend host." },
 ] as const;
 
 const activeNativeReason = computed(() => {
@@ -137,7 +141,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="jq-view-container flex flex-col p-4 gap-4 overflow-hidden">
+  <div class="jq-view-container flex flex-col px-4 pt-4 pb-0 gap-4 overflow-hidden">
     <div class="flex flex-col gap-2">
       <div class="jq-query-row flex items-center gap-2">
         <JqQueryInput
@@ -149,69 +153,75 @@ onUnmounted(() => {
           placeholder="Enter jq query (e.g. .foo[0])"
         />
       </div>
-      <div class="jq-controls-row flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          class="px-3 py-1 bg-white/10 hover:bg-white/15 rounded text-xs transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-          :disabled="!canRun || isLoading"
-          @click="executeJq"
-        >
-          {{ isLoading ? "Running..." : "Run" }}
-        </button>
-        <button
-          @click="handleCopyQuery"
-          class="px-3 py-1 bg-white/5 hover:bg-white/10 rounded text-xs transition-colors"
-        >
-          {{ queryCopied ? "✓ Copied" : "Copy Query" }}
-        </button>
-        <div class="flex items-center rounded border border-white/10 overflow-hidden">
+      <div class="jq-controls-row flex flex-wrap items-center gap-x-4 gap-y-2">
+        <div data-testid="jq-query-actions" class="flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            class="jq-run-button px-3 py-1 rounded text-xs transition-colors disabled:cursor-not-allowed"
+            :disabled="!canRun || isLoading"
+            :aria-busy="isLoading"
+            @click="executeJq"
+          >
+            Run
+          </button>
+          <button
+            type="button"
+            @click="handleCopyQuery"
+            class="jq-copy-query-button px-3 py-1 rounded text-xs transition-colors"
+          >
+            {{ queryCopied ? "✓ Copied" : "Copy Query" }}
+          </button>
+        </div>
+        <div data-testid="jq-engine-controls" class="jq-engine-controls flex shrink-0 items-center rounded border overflow-hidden">
           <button
             v-for="option in engineOptions"
             :key="option.value"
             type="button"
-            class="px-3 py-1 text-xs transition-colors border-r border-white/10 last:border-r-0"
-            :class="enginePreference === option.value ? 'bg-white/15 text-white' : 'bg-transparent text-white/70 hover:bg-white/5'"
-            :title="option.value === 'native' ? activeNativeReason : ''"
+            class="jq-engine-button px-3 py-1 text-xs transition-colors"
+            :class="{ 'is-active': enginePreference === option.value }"
+            :title="option.value === 'native' && activeNativeReason ? activeNativeReason : option.title"
             @click="enginePreference = option.value"
           >
             {{ option.label }}
           </button>
         </div>
-        <!-- v-model works correctly with the current Caido SDK (0.x) view mode host.
-             Older versions had binding issues requiring explicit :checked + @change;
-             revert to that pattern if a future SDK update breaks two-way binding. -->
-        <label class="flex items-center gap-2 text-xs cursor-pointer select-none">
-          <input
-            type="checkbox"
-            v-model="isCompact"
-            class="rounded bg-transparent border-white/10"
-          />
-          Compact
-        </label>
-        <label class="flex items-center gap-2 text-xs cursor-pointer select-none">
-          <input
-            type="checkbox"
-            v-model="isRaw"
-            class="rounded bg-transparent border-white/10"
-          />
-          Raw
-        </label>
-        <label class="flex items-center gap-2 text-xs cursor-pointer select-none">
-          <input
-            type="checkbox"
-            v-model="keysOnly"
-            class="rounded bg-transparent border-white/10"
-          />
-          Keys
-        </label>
-        <label class="flex items-center gap-2 text-xs cursor-pointer select-none">
-          <input
-            type="checkbox"
-            v-model="filterNulls"
-            class="rounded bg-transparent border-white/10"
-          />
-          No Nulls
-        </label>
+        <div data-testid="jq-output-options" class="flex flex-wrap items-center gap-2">
+          <!-- v-model works correctly with the current Caido SDK (0.x) view mode host.
+               Older versions had binding issues requiring explicit :checked + @change;
+               revert to that pattern if a future SDK update breaks two-way binding. -->
+          <label class="flex items-center gap-2 text-xs cursor-pointer select-none">
+            <input
+              type="checkbox"
+              v-model="isCompact"
+              class="rounded bg-transparent border-white/10"
+            />
+            Compact
+          </label>
+          <label class="flex items-center gap-2 text-xs cursor-pointer select-none">
+            <input
+              type="checkbox"
+              v-model="isRaw"
+              class="rounded bg-transparent border-white/10"
+            />
+            Raw
+          </label>
+          <label class="flex items-center gap-2 text-xs cursor-pointer select-none">
+            <input
+              type="checkbox"
+              v-model="keysOnly"
+              class="rounded bg-transparent border-white/10"
+            />
+            Keys
+          </label>
+          <label class="flex items-center gap-2 text-xs cursor-pointer select-none">
+            <input
+              type="checkbox"
+              v-model="filterNulls"
+              class="rounded bg-transparent border-white/10"
+            />
+            No Nulls
+          </label>
+        </div>
       </div>
     </div>
 
@@ -256,5 +266,60 @@ onUnmounted(() => {
   min-height: 0;
   background-color: transparent;
   color: var(--color-foreground, #fff);
+}
+
+.jq-run-button {
+  background-color: #0369a1;
+  color: #f8fafc;
+}
+
+.jq-run-button:hover:not(:disabled) {
+  background-color: #0284c7;
+}
+
+.jq-run-button:disabled {
+  opacity: 0.4;
+}
+
+.jq-copy-query-button {
+  background-color: #334155;
+  color: #e2e8f0;
+}
+
+.jq-copy-query-button:hover {
+  background-color: #475569;
+  color: #fff;
+}
+
+.jq-engine-controls {
+  border-color: rgba(148, 163, 184, 0.28);
+  background-color: rgba(15, 23, 42, 0.45);
+}
+
+.jq-engine-button {
+  border-right: 1px solid rgba(148, 163, 184, 0.22);
+  background-color: rgba(51, 65, 85, 0.5);
+  color: #cbd5e1;
+}
+
+.jq-engine-button:last-child {
+  border-right: 0;
+}
+
+.jq-engine-button:hover {
+  background-color: rgba(71, 85, 105, 0.8);
+  color: #fff;
+}
+
+.jq-engine-button.is-active {
+  background-color: #4338ca;
+  color: #fff;
+}
+
+.jq-run-button:focus-visible,
+.jq-copy-query-button:focus-visible,
+.jq-engine-button:focus-visible {
+  outline: 2px solid #7dd3fc;
+  outline-offset: 2px;
 }
 </style>

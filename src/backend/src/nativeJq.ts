@@ -32,7 +32,6 @@ export type NativeTaskState = {
 let availabilityCache: NativeJqAvailability | null = null;
 let availabilityCacheAt = 0;
 let availabilityProbePromise: Promise<NativeJqAvailability> | null = null;
-const fatalDecoder = new TextDecoder("utf-8", { fatal: true });
 
 function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((entry) => typeof entry === "string");
@@ -66,13 +65,12 @@ function decodeChunkText(chunks: Uint8Array[], totalBytes: number): { text: stri
   const merged = concatByteChunks(chunks, totalBytes);
   for (let trimBytes = 0; trimBytes <= 3 && trimBytes <= merged.byteLength; trimBytes += 1) {
     const candidateBytes = merged.byteLength - trimBytes;
-    try {
+    const text = Buffer.from(merged.subarray(0, candidateBytes)).toString("utf8");
+    if (Buffer.byteLength(text, "utf8") === candidateBytes) {
       return {
-        text: fatalDecoder.decode(merged.subarray(0, candidateBytes)),
+        text,
         bytes: candidateBytes,
       };
-    } catch {
-      continue;
     }
   }
 
@@ -236,7 +234,6 @@ export async function runNativeJqTask(
   return new Promise<JqExecutionResult>((resolve, reject) => {
     const start = performance.now();
     const child = spawnFn("jq", [...validated.flags, validated.query], {
-      shell: false,
       stdio: ["pipe", "pipe", "pipe"],
     });
     const stdoutChunks: Uint8Array[] = [];
@@ -370,6 +367,7 @@ export async function runNativeJqTask(
       });
     });
 
-    child.stdin?.end(validated.input);
+    child.stdin?.write(validated.input);
+    child.stdin?.end();
   });
 }

@@ -6,6 +6,7 @@ const result = ref<{
   exitCode: number;
 } | null>(null);
 const stderr = ref("");
+const isLoading = ref(false);
 
 vi.mock("../../composables/useSettings", () => ({
   useSettings: () => ({
@@ -35,7 +36,7 @@ vi.mock("../../composables/useJqRunner", () => ({
     result,
     stdout: computed(() => ""),
     stderr,
-    isLoading: ref(false),
+    isLoading,
     canRun: computed(() => true),
     requiresManualRun: computed(() => false),
     enginePreference: ref("automatic"),
@@ -76,6 +77,7 @@ describe("JqViewMode", () => {
   beforeEach(() => {
     result.value = null;
     stderr.value = "";
+    isLoading.value = false;
   });
 
   it("renders successful stderr as a warning instead of an error", async () => {
@@ -137,8 +139,29 @@ describe("JqViewMode", () => {
     }
 
     expect(controlsRow.classes()).toContain("flex-wrap");
-    const controlButtonLabels = controlsRow.findAll("button").map((button) => button.text().trim());
+    expect(controlsRow.classes()).toContain("gap-x-4");
+    expect(controlsRow.classes()).toContain("gap-y-2");
+    expect(controlsRow.classes()).not.toContain("justify-between");
+    expect(controlsRow.find('[data-testid="jq-query-actions"]').exists()).toBe(true);
+    expect(controlsRow.find('[data-testid="jq-engine-controls"]').exists()).toBe(true);
+    expect(controlsRow.find('[data-testid="jq-output-options"]').exists()).toBe(true);
+    const controlButtons = controlsRow.findAll("button");
+    const controlButtonLabels = controlButtons.map((button) => button.text().trim());
     expect(controlButtonLabels).toContain("Run");
     expect(controlButtonLabels).toContain("Copy Query");
+    expect(controlButtonLabels).toContain("Auto-select");
+
+    const runButton = controlButtons[0];
+    expect(runButton.classes()).toContain("jq-run-button");
+    expect(controlButtons[1]?.classes()).toContain("jq-copy-query-button");
+    isLoading.value = true;
+    await wrapper.vm.$nextTick();
+    expect(runButton.text()).toBe("Run");
+    expect(runButton.attributes("aria-busy")).toBe("true");
+
+    const autoSelectButton = controlButtons.find((button) => button.text().trim() === "Auto-select");
+    expect(autoSelectButton?.attributes("title")).toContain("Native jq");
+    expect(autoSelectButton?.classes()).toContain("is-active");
+    expect(wrapper.get(".jq-view-container").classes()).toContain("pb-0");
   });
 });
