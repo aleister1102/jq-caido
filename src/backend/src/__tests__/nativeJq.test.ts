@@ -62,7 +62,7 @@ describe("nativeJq", () => {
       input: "{}",
       inputBytes: 2,
       query: ".",
-      flags: ["--slurp"],
+      flags: ["--slurp" as any],
       timeoutMs: 1_000,
     })).toThrow("Unsupported jq flags");
   });

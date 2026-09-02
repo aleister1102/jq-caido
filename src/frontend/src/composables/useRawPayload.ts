@@ -1,4 +1,5 @@
 import { computed, ref, shallowRef, watch, type ComputedRef } from "vue";
+import { extractContentType, isJsonContentType } from "../lib/contentType";
 import { extractJsonBodyString } from "../lib/extractJsonBody";
 import {
   JQ_AUTOCOMPLETE_MAX_BYTES,
@@ -40,9 +41,23 @@ export function useRawPayload(props: ComputedRef<PropsShape>) {
   const parsedJsonSource = ref("");
   const bodyBytes = shallowRef<Uint8Array | null>(null);
   const bodyByteLength = ref(0);
+  const forcedParseSource = ref<string | null>(null);
 
-  const bodyText = computed(() => extractJsonBodyString(extractFirstRaw(props.value)) ?? "");
+  const rawMessage = computed(() => extractFirstRaw(props.value));
+  const bodyText = computed(() => extractJsonBodyString(rawMessage.value) ?? "");
   const isOversized = computed(() => bodyByteLength.value > JQ_INPUT_MAX_BYTES);
+
+  const contentType = computed(() => extractContentType(rawMessage.value));
+  const isJsonContent = computed(() => {
+    const mime = contentType.value;
+    return mime === null ? null : isJsonContentType(mime);
+  });
+  const isForcedParse = computed(() => forcedParseSource.value === rawMessage.value);
+  const isContentBlocked = computed(() => isJsonContent.value === false && !isForcedParse.value);
+
+  const forceParse = () => {
+    forcedParseSource.value = rawMessage.value;
+  };
 
   const autocompleteWarning = computed(() => {
     if (shouldEnableAutocomplete(bodyByteLength.value)) return "";
@@ -51,7 +66,7 @@ export function useRawPayload(props: ComputedRef<PropsShape>) {
 
   const ensureParsedJson = () => {
     const json = bodyText.value;
-    if (!json || isOversized.value || !shouldEnableAutocomplete(bodyByteLength.value)) {
+    if (!json || isContentBlocked.value || isOversized.value || !shouldEnableAutocomplete(bodyByteLength.value)) {
       parsedJson.value = null;
       parsedJsonSource.value = "";
       return;
@@ -75,10 +90,10 @@ export function useRawPayload(props: ComputedRef<PropsShape>) {
   };
 
   watch(
-    bodyText,
-    (json) => {
+    [bodyText, isContentBlocked],
+    ([json, blocked]) => {
       clearParsedJson();
-      if (!json) {
+      if (!json || blocked) {
         bodyBytes.value = null;
         bodyByteLength.value = 0;
         return;
@@ -98,5 +113,8 @@ export function useRawPayload(props: ComputedRef<PropsShape>) {
     isOversized,
     autocompleteWarning,
     ensureParsedJson,
+    contentType,
+    isContentBlocked,
+    forceParse,
   };
 }

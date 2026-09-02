@@ -4,7 +4,6 @@ import {
   JQ_FILTER_NULLS_MAX_BYTES,
   JQ_INPUT_MAX_BYTES,
   shouldAutoRun,
-  shouldPreferNative,
 } from "../../../shared/jqPolicy";
 import { formatBytes } from "../lib/formatBytes";
 import { cancelActiveJqRun, getNativeJqAvailability, runJq } from "../lib/runJq";
@@ -25,21 +24,35 @@ export function buildEffectiveQuery(
   return effectiveQuery;
 }
 
-export function useJqRunner(
-  bodyText: ComputedRef<string>,
-  bodyBytes: ShallowRef<Uint8Array | null>,
-  bodyByteLength: Ref<number>,
-  query: Ref<string>,
-  isCompact: Ref<boolean>,
-  isRaw: Ref<boolean>,
-  keysOnly: Ref<boolean>,
-  filterNulls: Ref<boolean>,
-  isOversized: ComputedRef<boolean>,
-) {
+export type JqRunnerOptions = {
+  bodyText: ComputedRef<string>;
+  bodyBytes: ShallowRef<Uint8Array | null>;
+  bodyByteLength: Ref<number>;
+  query: Ref<string>;
+  isCompact: Ref<boolean>;
+  isRaw: Ref<boolean>;
+  keysOnly: Ref<boolean>;
+  filterNulls: Ref<boolean>;
+  isOversized: ComputedRef<boolean>;
+  isContentBlocked: ComputedRef<boolean>;
+};
+
+export function useJqRunner({
+  bodyText,
+  bodyBytes,
+  bodyByteLength,
+  query,
+  isCompact,
+  isRaw,
+  keysOnly,
+  filterNulls,
+  isOversized,
+  isContentBlocked,
+}: JqRunnerOptions) {
   const result = ref<JqExecutionResult | null>(null);
   const statusText = ref("");
   const isLoading = ref(false);
-  const enginePreference = ref<JqEnginePreference>("automatic");
+  const enginePreference = ref<JqEnginePreference>("jq-wasm");
   const nativeAvailability = ref<NativeJqAvailability>({
     available: false,
     version: null,
@@ -65,20 +78,31 @@ export function useJqRunner(
     }
     return parts.join("\n");
   });
-  const canRun = computed(() => bodyByteLength.value > 0 && !isOversized.value && bodyText.value.length > 0);
+  const canRun = computed(
+    () => bodyByteLength.value > 0
+      && !isOversized.value
+      && !isContentBlocked.value
+      && bodyText.value.length > 0,
+  );
   const requiresManualRun = computed(() => canRun.value && !shouldAutoRun(bodyByteLength.value));
 
   const setIdleState = () => {
     result.value = null;
     isLoading.value = false;
 
+    if (isContentBlocked.value) {
+      statusText.value = "";
+      return;
+    }
+
     if (isOversized.value) {
       statusText.value = `Payload too large (> ${Math.round(JQ_INPUT_MAX_BYTES / 1_000_000)} MB) - jq is disabled.`;
       return;
     }
 
+    // An empty body is not an error: the output panel renders the empty state instead.
     if (!bodyText.value || bodyByteLength.value === 0) {
-      statusText.value = "Error: No content provided to this view mode.";
+      statusText.value = "";
       return;
     }
 
@@ -144,7 +168,9 @@ export function useJqRunner(
       debounceTimer = null;
     }
     void cancelActiveJqRun();
-    setIdleState();
+    if (!canRun.value || requiresManualRun.value) {
+      setIdleState();
+    }
   };
 
   const executeJqDebounced = () => {
@@ -158,8 +184,6 @@ export function useJqRunner(
     }, 300);
   };
 
-  void refreshNativeAvailability();
-
   onScopeDispose(() => {
     if (debounceTimer) {
       clearTimeout(debounceTimer);
@@ -169,17 +193,16 @@ export function useJqRunner(
   });
 
   watch(
-    [enginePreference, bodyByteLength],
-    ([nextEngine, nextBytes]) => {
-      if (nextEngine === "native" || shouldPreferNative(nextBytes)) {
-        void refreshNativeAvailability(nextEngine === "native");
+    enginePreference,
+    (nextEngine) => {
+      if (nextEngine === "native") {
+        void refreshNativeAvailability(true);
       }
     },
-    { immediate: true },
   );
 
   watch(
-    [bodyText, bodyByteLength, isCompact, isRaw, keysOnly, filterNulls, enginePreference],
+    [bodyText, bodyByteLength, isCompact, isRaw, keysOnly, filterNulls, enginePreference, isContentBlocked],
     () => {
       resetForInputChange();
       if (!requiresManualRun.value && canRun.value) {

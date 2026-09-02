@@ -6,3 +6,8 @@ large_test_data*.json
 *.sig
 .DS_Store
 package-lock.json
+.claude/
+.commandcode/
+.omp/
+.agents/
+skills-lock.json

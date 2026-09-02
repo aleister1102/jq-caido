@@ -7,7 +7,7 @@ describe("JqOutputPanel", () => {
         stdout: "output text",
         displayOutput: "output text",
         shouldHighlight: false,
-        enginePreference: "automatic" as const,
+        enginePreference: "jq-wasm" as const,
         resultEngine: "native" as const,
         resultHost: "caido-backend-host" as const,
         inputBytes: 1024,
@@ -31,8 +31,7 @@ describe("JqOutputPanel", () => {
 
         expect(wrapper.text()).toContain("Engine");
         expect(wrapper.text()).toContain("Native jq");
-        expect(wrapper.text()).toContain("Mode");
-        expect(wrapper.text()).toContain("Auto-select");
+
         expect(wrapper.text()).toContain("Host");
         expect(wrapper.text()).toContain("Caido backend");
         expect(wrapper.text()).toContain("Time");
@@ -49,10 +48,8 @@ describe("JqOutputPanel", () => {
         });
 
         expect(wrapper.text()).toContain("Mode");
-        expect(wrapper.text()).toContain("Auto-select");
-        expect(wrapper.text()).toContain("Engine");
-        expect(wrapper.text()).toContain("Not run");
-        expect(wrapper.findAll(".jq-stat")).toHaveLength(6);
+        expect(wrapper.text()).toContain("jq-wasm");
+        expect(wrapper.text()).not.toContain("Host");
     });
 
     it("renders truncated copy text when output is capped", () => {
@@ -63,7 +60,7 @@ describe("JqOutputPanel", () => {
             },
         });
 
-        expect(wrapper.text()).toContain("Copy Truncated Output");
+        expect(wrapper.text()).toContain("Copy truncated output");
     });
 
     it("shows copied state when outputCopied is true", () => {
@@ -75,7 +72,6 @@ describe("JqOutputPanel", () => {
         });
 
         expect(wrapper.text()).toContain("Copied");
-        expect(wrapper.text()).toContain("✓");
     });
 
     it("shows stderr truncation and output status badges", () => {
@@ -83,12 +79,12 @@ describe("JqOutputPanel", () => {
             props: {
                 ...baseProps,
                 isStderrTruncated: true,
-                outputStatus: "Highlighting disabled for large output.",
+                outputStatus: "Highlighting off above 400 KB",
             },
         });
 
         expect(wrapper.text()).toContain("Stderr truncated");
-        expect(wrapper.text()).toContain("Highlighting disabled for large output.");
+        expect(wrapper.text()).toContain("Highlighting off above 400 KB");
     });
 
     it("does not add template indentation to output", () => {

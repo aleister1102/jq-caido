@@ -30,6 +30,9 @@ const {
   isOversized,
   autocompleteWarning,
   ensureParsedJson,
+  contentType,
+  isContentBlocked,
+  forceParse,
 } = useRawPayload(computed(() => props));
 
 const {
@@ -42,7 +45,7 @@ const {
   enginePreference,
   nativeAvailability,
   executeJq: executeJqInternal,
-} = useJqRunner(
+} = useJqRunner({
   bodyText,
   bodyBytes,
   bodyByteLength,
@@ -52,7 +55,8 @@ const {
   keysOnly,
   filterNulls,
   isOversized,
-);
+  isContentBlocked,
+});
 
 const outputDisplay = useOutputDisplay(
   stdout,
@@ -102,13 +106,8 @@ watch([isCompact, isRaw, keysOnly, filterNulls], () => {
 });
 
 const engineOptions = [
-  {
-    label: "Auto-select",
-    value: "automatic",
-    title: "Uses Native jq for inputs 10 MB and above when available; otherwise jq-wasm.",
-  },
-  { label: "jq-wasm", value: "jq-wasm", title: "Runs jq in the browser via WebAssembly." },
-  { label: "Native jq", value: "native", title: "Runs jq on the Caido backend host." },
+  { label: "jq-wasm", value: "jq-wasm" },
+  { label: "Native jq", value: "native" },
 ] as const;
 
 const activeNativeReason = computed(() => {
@@ -118,14 +117,19 @@ const activeNativeReason = computed(() => {
   return nativeAvailability.value.reason ?? "Native jq is unavailable on the Caido backend host.";
 });
 
+const outputPlaceholder = computed(() => {
+  if (!bodyText.value) return "This message has no body to query.";
+  return "No output";
+});
+
 const statusPanelClass = computed(() => {
   if (result.value?.exitCode === 0) {
-    return "bg-amber-900/20 border-amber-500/30 text-amber-200";
+    return "is-warning";
   }
   if (result.value && result.value.exitCode !== 0) {
-    return "bg-red-900/20 border-red-500/30 text-red-200";
+    return "is-error";
   }
-  return "bg-white/5 border-white/10 text-white/80";
+  return "is-info";
 });
 
 onUnmounted(() => {
@@ -141,8 +145,8 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="jq-view-container flex flex-col px-4 pt-4 pb-0 gap-4 overflow-hidden">
-    <div class="flex flex-col gap-2">
+  <div class="jq-view-container">
+    <div class="jq-toolbar">
       <div class="jq-query-row flex items-center gap-2">
         <JqQueryInput
           v-model="query"
@@ -153,86 +157,63 @@ onUnmounted(() => {
           placeholder="Enter jq query (e.g. .foo[0])"
         />
       </div>
-      <div class="jq-controls-row flex flex-wrap items-center gap-x-4 gap-y-2">
-        <div data-testid="jq-query-actions" class="flex shrink-0 items-center gap-2">
+      <div class="jq-controls-row flex flex-wrap items-center justify-between gap-2">
+        <div data-testid="jq-query-actions" class="jq-controls-group">
           <button
             type="button"
-            class="jq-run-button px-3 py-1 rounded text-xs transition-colors disabled:cursor-not-allowed"
+            class="jq-button jq-button--primary"
             :disabled="!canRun || isLoading"
-            :aria-busy="isLoading"
             @click="executeJq"
           >
             Run
           </button>
-          <button
-            type="button"
-            @click="handleCopyQuery"
-            class="jq-copy-query-button px-3 py-1 rounded text-xs transition-colors"
-          >
-            {{ queryCopied ? "✓ Copied" : "Copy Query" }}
+          <button type="button" class="jq-button jq-button--copy-query" @click="handleCopyQuery">
+            {{ queryCopied ? "Query copied" : "Copy query" }}
           </button>
+          <div data-testid="jq-engine-controls" class="jq-segmented">
+            <button
+              v-for="option in engineOptions"
+              :key="option.value"
+              type="button"
+              class="jq-segment"
+              :class="{ 'is-active': enginePreference === option.value }"
+              :title="option.value === 'native' ? activeNativeReason : ''"
+              @click="enginePreference = option.value"
+            >
+              {{ option.label }}
+            </button>
+          </div>
         </div>
-        <div data-testid="jq-engine-controls" class="jq-engine-controls flex shrink-0 items-center rounded border overflow-hidden">
-          <button
-            v-for="option in engineOptions"
-            :key="option.value"
-            type="button"
-            class="jq-engine-button px-3 py-1 text-xs transition-colors"
-            :class="{ 'is-active': enginePreference === option.value }"
-            :title="option.value === 'native' && activeNativeReason ? activeNativeReason : option.title"
-            @click="enginePreference = option.value"
-          >
-            {{ option.label }}
-          </button>
-        </div>
-        <div data-testid="jq-output-options" class="flex flex-wrap items-center gap-2">
-          <!-- v-model works correctly with the current Caido SDK (0.x) view mode host.
-               Older versions had binding issues requiring explicit :checked + @change;
-               revert to that pattern if a future SDK update breaks two-way binding. -->
-          <label class="flex items-center gap-2 text-xs cursor-pointer select-none">
-            <input
-              type="checkbox"
-              v-model="isCompact"
-              class="rounded bg-transparent border-white/10"
-            />
+        <!-- v-model works correctly with the current Caido SDK (0.x) view mode host.
+             Older versions had binding issues requiring explicit :checked + @change;
+             revert to that pattern if a future SDK update breaks two-way binding. -->
+        <div data-testid="jq-output-options" class="jq-controls-group">
+          <label class="jq-flag" :class="{ 'is-on': isCompact }">
+            <input type="checkbox" v-model="isCompact" />
             Compact
           </label>
-          <label class="flex items-center gap-2 text-xs cursor-pointer select-none">
-            <input
-              type="checkbox"
-              v-model="isRaw"
-              class="rounded bg-transparent border-white/10"
-            />
+          <label class="jq-flag" :class="{ 'is-on': isRaw }">
+            <input type="checkbox" v-model="isRaw" />
             Raw
           </label>
-          <label class="flex items-center gap-2 text-xs cursor-pointer select-none">
-            <input
-              type="checkbox"
-              v-model="keysOnly"
-              class="rounded bg-transparent border-white/10"
-            />
+          <label class="jq-flag" :class="{ 'is-on': keysOnly }">
+            <input type="checkbox" v-model="keysOnly" />
             Keys
           </label>
-          <label class="flex items-center gap-2 text-xs cursor-pointer select-none">
-            <input
-              type="checkbox"
-              v-model="filterNulls"
-              class="rounded bg-transparent border-white/10"
-            />
-            No Nulls
+          <label class="jq-flag" :class="{ 'is-on': filterNulls }">
+            <input type="checkbox" v-model="filterNulls" />
+            No nulls
           </label>
         </div>
       </div>
     </div>
 
-    <div class="flex-1 flex flex-col min-h-0 gap-2">
+    <div class="jq-output-region">
       <div
         v-if="stderr"
         data-testid="jq-status-panel"
-        :class="[
-          'p-3 border rounded text-xs font-mono whitespace-pre-wrap overflow-auto max-h-32',
-          statusPanelClass,
-        ]"
+        class="jq-status-panel"
+        :class="statusPanelClass"
       >
         {{ stderr }}
       </div>
@@ -254,18 +235,341 @@ onUnmounted(() => {
         :hasRun="result !== null"
         :requiresManualRun="requiresManualRun"
         :outputStatus="outputDisplay.statusMessage.value"
+        :placeholder="outputPlaceholder"
         @copy="handleCopyOutput"
       />
+    </div>
+
+    <div
+      v-if="isContentBlocked"
+      data-testid="jq-content-type-notice"
+      class="jq-blocked-overlay"
+    >
+      <div class="jq-blocked-card">
+        <p class="jq-blocked-title">Not a JSON body</p>
+        <p class="jq-blocked-detail">
+          Content-Type: <span class="jq-blocked-mime">{{ contentType }}</span>
+        </p>
+        <p class="jq-blocked-hint">jq was skipped for this message.</p>
+        <button
+          type="button"
+          data-testid="jq-force-parse"
+          class="jq-button jq-button--primary"
+          @click="forceParse"
+        >
+          Parse anyway
+        </button>
+      </div>
     </div>
   </div>
 </template>
 
 <style scoped>
+/* Every color and metric is pinned: Caido host styles win over utility classes. */
 .jq-view-container {
+  --jq-accent: #3b82f6;
+  --jq-accent-hover: #2563eb;
+  --jq-surface: rgba(255, 255, 255, 0.05);
+  --jq-surface-hover: rgba(255, 255, 255, 0.1);
+  --jq-hairline: rgba(255, 255, 255, 0.12);
+  --jq-hairline-strong: rgba(255, 255, 255, 0.22);
+  --jq-text: rgba(240, 243, 248, 0.92);
+  --jq-text-dim: rgba(160, 168, 180, 0.85);
+  --jq-lamp-high: #e3a83c;
+  --jq-lamp-critical: #e4646e;
+
+  position: relative;
+  flex: 1 1 0;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px;
+  overflow: hidden;
+  box-sizing: border-box;
+  background-color: transparent;
+  color: var(--jq-text);
+}
+
+.jq-toolbar {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.jq-query-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.jq-controls-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 12px;
+  width: 100%;
+}
+
+.jq-controls-group {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.jq-output-region {
   flex: 1 1 0;
   min-height: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Clean, flat, unified button heights and styling - zero gradients */
+.jq-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 26px;
+  padding: 0 12px;
+  border: 1px solid var(--jq-hairline);
+  border-radius: 4px;
+  background-color: var(--jq-surface);
+  color: var(--jq-text);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  box-sizing: border-box;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.jq-button:hover:not(:disabled) {
+  background-color: var(--jq-surface-hover);
+  border-color: var(--jq-hairline-strong);
+  color: #fff;
+}
+
+.jq-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.jq-button--copy-query {
+  width: 96px;
+  min-width: 96px;
+  max-width: 96px;
+  padding: 0 6px;
+  text-align: center;
+}
+
+.jq-button--primary {
+  border-color: var(--jq-accent);
+  background-color: var(--jq-accent);
+  color: #ffffff;
+  font-weight: 500;
+}
+
+.jq-button--primary:hover:not(:disabled) {
+  border-color: var(--jq-accent-hover);
+  background-color: var(--jq-accent-hover);
+}
+
+.jq-segmented {
+  display: inline-flex;
+  align-items: stretch;
+  height: 26px;
+  border: 1px solid var(--jq-hairline);
+  border-radius: 4px;
+  background-color: var(--jq-surface);
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.jq-segment {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 0 10px;
+  border: none;
+  border-radius: 0;
   background-color: transparent;
-  color: var(--color-foreground, #fff);
+  color: var(--jq-text-dim);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  box-sizing: border-box;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.jq-segment + .jq-segment {
+  border-left: 1px solid var(--jq-hairline);
+}
+
+.jq-segment:hover {
+  background-color: var(--jq-surface-hover);
+  color: var(--jq-text);
+}
+
+.jq-segment.is-active {
+  background-color: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+}
+
+.jq-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--jq-hairline);
+  border-radius: 4px;
+  background-color: var(--jq-surface);
+  color: var(--jq-text-dim);
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  box-sizing: border-box;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.jq-flag:hover {
+  background-color: var(--jq-surface-hover);
+  border-color: var(--jq-hairline-strong);
+  color: #fff;
+}
+
+.jq-flag.is-on {
+  border-color: rgba(59, 130, 246, 0.5);
+  color: var(--jq-text);
+}
+
+.jq-flag input {
+  width: 12px;
+  height: 12px;
+  margin: 0;
+  accent-color: var(--jq-accent);
+  cursor: pointer;
+}
+
+
+.jq-button:focus-visible,
+.jq-segment:focus-visible,
+.jq-flag:focus-within {
+  outline: 2px solid rgba(76, 126, 243, 0.65);
+  outline-offset: 1px;
+}
+
+.jq-status-panel {
+  flex: 0 0 auto;
+  max-height: 120px;
+  padding: 8px 10px;
+  border: 1px solid var(--jq-hairline);
+  border-radius: 6px;
+  overflow: auto;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, monospace);
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  user-select: text;
+  -webkit-user-select: text;
+  cursor: text;
+}
+
+.jq-status-panel::selection,
+.jq-status-panel *::selection {
+  background-color: rgba(228, 100, 110, 0.4);
+}
+.jq-status-panel.is-info {
+  background-color: rgba(255, 255, 255, 0.05);
+  color: rgba(233, 236, 242, 0.8);
+}
+
+.jq-status-panel.is-warning {
+  border-color: rgba(227, 168, 60, 0.4);
+  background-color: rgba(227, 168, 60, 0.1);
+  color: var(--jq-lamp-high);
+}
+
+.jq-status-panel.is-error {
+  border-color: rgba(228, 100, 110, 0.4);
+  background-color: rgba(228, 100, 110, 0.1);
+  color: var(--jq-lamp-critical);
+}
+
+.jq-blocked-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background-color: rgba(12, 13, 16, 0.9);
+  backdrop-filter: blur(2px);
+}
+
+.jq-blocked-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  max-width: 380px;
+  padding: 20px 24px;
+  border: 1px solid var(--jq-hairline);
+  border-radius: 10px;
+  background-color: rgba(24, 26, 31, 0.98);
+  text-align: center;
+}
+
+.jq-blocked-title {
+  margin: 0;
+  color: var(--jq-text);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.jq-blocked-detail {
+  margin: 0;
+  color: rgba(233, 236, 242, 0.7);
+  font-size: 13px;
+}
+
+.jq-blocked-mime {
+  color: var(--jq-lamp-high);
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, monospace);
+}
+
+.jq-blocked-hint {
+  margin: 0;
+  color: var(--jq-text-dim);
+  font-size: 12px;
+}
+
+.jq-blocked-card .jq-button {
+  margin-top: 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jq-button,
+  .jq-segment,
+  .jq-flag {
+    transition: none;
+  }
 }
 
 .jq-run-button {

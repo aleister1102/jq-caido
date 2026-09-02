@@ -1,15 +1,19 @@
 import { ref } from "vue";
 
-const STORAGE_KEY = "jq-plugin-settings";
+const STORAGE_KEY = "jq-plugin-settings-v5";
 
 export function useSettings() {
-  const isCompact = ref(true);
+  const isCompact = ref(false);
   const isRaw = ref(true);
   const keysOnly = ref(false);
-  const filterNulls = ref(false);
+  const filterNulls = ref(true);
 
   const loadSettings = () => {
     try {
+      // Clear obsolete legacy settings so old defaults (like isCompact: true) do not linger
+      localStorage.removeItem("jq-plugin-settings");
+      localStorage.removeItem("jq-plugin-settings-v2");
+
       const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return;
       const settings = JSON.parse(raw);

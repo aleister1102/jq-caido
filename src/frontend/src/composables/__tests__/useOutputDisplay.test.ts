@@ -1,20 +1,21 @@
 import { describe, it, expect } from "vitest";
 import { effectScope, ref, nextTick } from "vue";
+import { JQ_HIGHLIGHT_MAX_BYTES } from "../../../../shared/jqPolicy";
 import { useOutputDisplay } from "../useOutputDisplay";
 
 describe("useOutputDisplay", () => {
   it("renders plain text without highlighting for large outputs", async () => {
     const scope = effectScope();
-    const largeOutput = "a".repeat(200_000);
+    const largeOutput = "a".repeat(JQ_HIGHLIGHT_MAX_BYTES);
     const stdout = ref(largeOutput);
-    const stdoutBytes = ref(200_000);
+    const stdoutBytes = ref(JQ_HIGHLIGHT_MAX_BYTES);
     const { displayOutput, shouldHighlight, statusMessage } = scope.run(() => useOutputDisplay(stdout, stdoutBytes))!;
 
     await nextTick();
 
     expect(shouldHighlight.value).toBe(false);
     expect(displayOutput.value).toBe(largeOutput);
-    expect(statusMessage.value).toBe("Highlighting disabled for large output.");
+    expect(statusMessage.value).toBe("Highlighting off above 400 KB");
     scope.stop();
   });
 

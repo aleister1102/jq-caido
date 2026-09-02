@@ -1,5 +1,5 @@
 import { computed, type ComputedRef, type Ref } from "vue";
-import { shouldHighlightOutput } from "../../../shared/jqPolicy";
+import { JQ_HIGHLIGHT_MAX_BYTES, shouldHighlightOutput } from "../../../shared/jqPolicy";
 import { highlightJson } from "../lib/highlightJson";
 
 export function useOutputDisplay(
@@ -13,7 +13,9 @@ export function useOutputDisplay(
     if (!stdout.value) {
       return "";
     }
-    return shouldHighlight.value ? "" : "Highlighting disabled for large output.";
+    return shouldHighlight.value
+      ? ""
+      : `Highlighting off above ${Math.round(JQ_HIGHLIGHT_MAX_BYTES / 1_000)} KB`;
   });
   const displayOutput = computed(() => {
     if (!stdout.value) {

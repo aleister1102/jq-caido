@@ -105,7 +105,7 @@ const onKeyDown = (e: KeyboardEvent) => {
 </script>
 
 <template>
-  <div ref="containerRef" class="jq-query-input-container relative w-full min-w-0">
+  <div ref="containerRef" class="jq-query-input-container">
     <input
       ref="inputRef"
       :value="modelValue"
@@ -113,7 +113,7 @@ const onKeyDown = (e: KeyboardEvent) => {
       @keydown="onKeyDown"
       @focus="onFocus"
       :placeholder="placeholder"
-      class="w-full bg-transparent border border-white/10 rounded px-3 py-1 text-sm focus:outline-none focus:border-white/30 transition-colors"
+      class="jq-query-field"
     />
 
     <SuggestionDropdown
@@ -124,7 +124,7 @@ const onKeyDown = (e: KeyboardEvent) => {
       @hover="setSelectedIndex"
     />
 
-    <div v-if="autocompleteWarning" class="mt-1 text-xs text-white/60">
+    <div v-if="autocompleteWarning" class="jq-query-warning">
       {{ autocompleteWarning }}
     </div>
   </div>
@@ -132,6 +132,51 @@ const onKeyDown = (e: KeyboardEvent) => {
 
 <style scoped>
 .jq-query-input-container {
+  position: relative;
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
   font-family: var(--font-mono, monospace);
+}
+
+/* Colors are pinned instead of themed: Caido host styles override utility classes. */
+.jq-query-field {
+  width: 100%;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 6px;
+  background-color: rgba(255, 255, 255, 0.04);
+  color: rgba(233, 236, 242, 0.94);
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, monospace);
+  font-size: 14px;
+  line-height: 1;
+  outline: none;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.jq-query-field::placeholder {
+  color: rgba(150, 158, 170, 0.75);
+}
+
+.jq-query-field:hover {
+  border-color: rgba(255, 255, 255, 0.24);
+}
+
+.jq-query-field:focus {
+  border-color: rgba(76, 126, 243, 0.8);
+  background-color: rgba(255, 255, 255, 0.06);
+}
+
+.jq-query-warning {
+  margin-top: 4px;
+  color: rgba(227, 168, 60, 0.9);
+  font-size: 12px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jq-query-field {
+    transition: none;
+  }
 }
 </style>
