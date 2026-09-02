@@ -7,7 +7,7 @@ Inspired by [burp-jq](https://github.com/synacktiv/burp-jq) (Synacktiv).
 ## Features
 
 - Interactive `jq` queries on the bundled **jq-wasm** engine, with an optional **Native jq** engine control.
-- Request and response bodies are only parsed when `Content-Type` is JSON. Other types show a full-view prompt with a **Parse anyway** button.
+- Request and response bodies are only parsed when `Content-Type` is JSON (`application/json`, `text/json`, `*+json`, ndjson). Other types show a full-view prompt with a **Parse anyway** button.
 - Default flags: `Raw` and `No Nulls` on, `Compact` and `Keys` off.
 - `jq-wasm` upgraded to `3.0.0-jq-1.8.2`, using the inline build so the packaged worker does not need to resolve a separate `.wasm` URL.
 - Optional backend `jq` execution on the **Caido backend host** when `jq` is available on `PATH`.

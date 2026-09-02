@@ -28,14 +28,23 @@ export function extractContentType(raw: string): string | null {
   const match = CONTENT_TYPE_HEADER.exec(head);
   if (!match) return null;
 
-  const mime = match[1]?.split(";")[0]?.trim().toLowerCase() ?? "";
+  let mime = match[1]?.split(";")[0]?.trim().toLowerCase() ?? "";
+  if (mime.startsWith('"') && mime.endsWith('"')) {
+    mime = mime.slice(1, -1).trim();
+  }
   return mime.length > 0 ? mime : null;
 }
 
 export function isJsonContentType(mime: string): boolean {
   return mime === "text/json"
+    || mime === "text/x-json"
+    || mime === "application/json"
+    || mime === "application/x-json"
     || mime === "application/x-ndjson"
     || mime === "application/ndjson"
+    || mime === "application/jsonlines"
+    || mime === "application/x-jsonlines"
+    || mime === "text/jsonlines"
     || mime.endsWith("/json")
     || mime.endsWith("+json");
 }
