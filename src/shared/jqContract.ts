@@ -1,6 +1,6 @@
 import type { JqFlag } from "./jqPolicy";
 
-export type JqEnginePreference = "automatic" | "jq-wasm" | "native";
+export type JqEnginePreference = "jq-wasm" | "native";
 export type JqEngine = "jq-wasm" | "native";
 export type JqHost = "browser" | "caido-backend-host";
 

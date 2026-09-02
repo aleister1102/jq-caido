@@ -1,11 +1,15 @@
-let encoder: TextEncoder | null = null;
-
+let lazyEncoder: TextEncoder | null = null;
 function getEncoder(): TextEncoder {
-  encoder ??= new TextEncoder();
-  return encoder;
+  if (!lazyEncoder) {
+    lazyEncoder = new TextEncoder();
+  }
+  return lazyEncoder;
 }
 
 export function byteLengthOfText(text: string): number {
+  if (typeof Buffer !== "undefined") {
+    return Buffer.byteLength(text, "utf8");
+  }
   return getEncoder().encode(text).byteLength;
 }
 

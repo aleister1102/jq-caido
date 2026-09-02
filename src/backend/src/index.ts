@@ -5,7 +5,15 @@ import { cancelNativeJqTask, probeNativeJqAvailability, runNativeJqTask, type Na
 const activeTasks = new Map<string, NativeTaskState>();
 
 async function nativeJqAvailability(_sdk: SDK, forceRefresh = false) {
-  return probeNativeJqAvailability(forceRefresh);
+  try {
+    return await probeNativeJqAvailability(forceRefresh);
+  } catch (err) {
+    return {
+      available: false,
+      version: null,
+      reason: err instanceof Error ? err.message : String(err),
+    };
+  }
 }
 
 async function runNativeJq(_sdk: SDK, request: NativeJqRequest) {
@@ -23,7 +31,11 @@ export type API = DefineAPI<{
 }>;
 
 export function init(sdk: SDK<API>) {
-  sdk.api.register("nativeJqAvailability", nativeJqAvailability);
-  sdk.api.register("runNativeJq", runNativeJq);
-  sdk.api.register("cancelNativeJq", cancelNativeJq);
+  try {
+    sdk.api.register("nativeJqAvailability", nativeJqAvailability);
+    sdk.api.register("runNativeJq", runNativeJq);
+    sdk.api.register("cancelNativeJq", cancelNativeJq);
+  } catch (err) {
+    console.error("JQ backend init failed:", err);
+  }
 }

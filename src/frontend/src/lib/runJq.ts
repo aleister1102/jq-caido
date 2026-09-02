@@ -10,7 +10,6 @@ import {
   JQ_NATIVE_AVAILABILITY_CACHE_TTL_MS,
   JQ_NATIVE_HOST,
   computeJqTimeout,
-  shouldPreferNative,
   type JqFlag,
 } from "../../../shared/jqPolicy";
 import { byteLengthOfText } from "../../../shared/jqTransfer";
@@ -84,19 +83,6 @@ function wait(ms: number): Promise<void> {
   return new Promise((resolve) => {
     setTimeout(resolve, ms);
   });
-}
-
-function appendWarning(result: JqExecutionResult, warning: string | null): JqExecutionResult {
-  if (!warning) {
-    return result;
-  }
-
-  const stderr = result.stderr ? `${result.stderr}\n${warning}` : warning;
-  return {
-    ...result,
-    stderr,
-    stderrBytes: byteLengthOfText(stderr),
-  };
 }
 
 function resetWorker(): void {
@@ -294,31 +280,16 @@ export async function getNativeJqAvailability(forceRefresh = false): Promise<Nat
 
 export function resolveJqEngine(
   preference: JqEnginePreference,
-  inputBytes: number,
   availability: NativeJqAvailability | null,
 ): { engine: JqEngine; unavailableReason: string | null } {
-  if (preference === "jq-wasm") {
-    return { engine: "jq-wasm", unavailableReason: null };
-  }
-
-  if (preference === "native") {
-    if (availability?.available) {
-      return { engine: "native", unavailableReason: null };
-    }
+  if (preference === "native" && !availability?.available) {
     return {
       engine: "native",
       unavailableReason: availability?.reason ?? "Native jq is unavailable on the Caido backend host.",
     };
   }
 
-  if (!shouldPreferNative(inputBytes) || !availability?.available) {
-    return {
-      engine: "jq-wasm",
-      unavailableReason: availability?.available === false ? availability.reason : null,
-    };
-  }
-
-  return { engine: "native", unavailableReason: null };
+  return { engine: preference, unavailableReason: null };
 }
 
 async function runWasmJq(
@@ -446,14 +417,10 @@ export async function runJq({
 }: RunJqParams): Promise<JqExecutionResult> {
   await cancelActiveJqRun();
 
-  const needsAvailability =
-    enginePreference === "native" || (enginePreference === "automatic" && shouldPreferNative(inputBytes));
-  const availability = needsAvailability
-    ? await getNativeJqAvailability(enginePreference === "native")
-    : null;
-  const resolvedEngine = resolveJqEngine(enginePreference, inputBytes, availability);
+  const availability = enginePreference === "native" ? await getNativeJqAvailability(true) : null;
+  const resolvedEngine = resolveJqEngine(enginePreference, availability);
 
-  if (enginePreference === "native" && resolvedEngine.unavailableReason) {
+  if (resolvedEngine.unavailableReason) {
     return createResult(
       "native",
       inputBytes,
@@ -465,13 +432,5 @@ export async function runJq({
     return runNativeJq(bodyText, inputBytes, query, flags);
   }
 
-  const fallbackWarning =
-    enginePreference === "automatic" && resolvedEngine.unavailableReason
-      ? `Warning: Native jq is unavailable on the Caido backend host. Falling back to jq-wasm. ${resolvedEngine.unavailableReason}`
-      : null;
-
-  return appendWarning(
-    await runWasmJq(bodyBytes ?? encoder.encode(bodyText), query, flags),
-    fallbackWarning,
-  );
+  return runWasmJq(bodyBytes ?? encoder.encode(bodyText), query, flags);
 }

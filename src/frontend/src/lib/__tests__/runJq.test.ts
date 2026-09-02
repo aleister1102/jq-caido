@@ -166,34 +166,6 @@ describe("runJq", () => {
     expect(MockWorker.instances).toHaveLength(2);
   });
 
-  it("falls back to jq-wasm in automatic mode when native jq is unavailable", async () => {
-    MockWorker.plans = [{ kind: "success", stdout: "fallback" }];
-    const { runJq, setCaido } = await loadRunJqModule();
-    const caido = createCaido({
-      available: false,
-      version: null,
-      reason: "jq missing",
-    });
-    setCaido(caido as never);
-
-    const result = await runJq({
-      bodyText: "null",
-      bodyBytes: new Uint8Array(10_000_000),
-      inputBytes: 10_000_000,
-      query: ".",
-      flags: [],
-      enginePreference: "automatic",
-    });
-
-    expect(result.engine).toBe("jq-wasm");
-    expect(result.stdout).toBe("fallback");
-    expect(result.exitCode).toBe(0);
-    expect(result.stderr).toContain("Falling back to jq-wasm");
-    expect(result.stderr).toContain("jq missing");
-    expect(caido.backend.nativeJqAvailability).toHaveBeenCalled();
-    expect(caido.backend.runNativeJq).not.toHaveBeenCalled();
-  });
-
   it("runs jq-wasm when bytes are materialized lazily", async () => {
     MockWorker.plans = [{ kind: "success", stdout: "lazy" }];
     const { runJq } = await loadRunJqModule();
@@ -233,7 +205,7 @@ describe("runJq", () => {
     expect(MockWorker.instances).toHaveLength(0);
   });
 
-  it("uses native jq in automatic mode when available for large inputs", async () => {
+  it("uses native jq when explicitly selected and available", async () => {
     const nativeResult = {
       engine: "native",
       host: "caido-backend-host",
@@ -261,7 +233,7 @@ describe("runJq", () => {
       inputBytes: 10_000_000,
       query: ".",
       flags: [],
-      enginePreference: "automatic",
+      enginePreference: "native",
     });
 
     expect(result).toMatchObject(nativeResult);

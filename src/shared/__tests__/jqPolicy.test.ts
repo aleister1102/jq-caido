@@ -3,11 +3,9 @@ import {
   JQ_AUTOCOMPLETE_MAX_BYTES,
   JQ_AUTO_RUN_MAX_BYTES,
   JQ_HIGHLIGHT_MAX_BYTES,
-  JQ_NATIVE_MIN_BYTES,
   shouldAutoRun,
   shouldEnableAutocomplete,
   shouldHighlightOutput,
-  shouldPreferNative,
 } from "../jqPolicy";
 
 describe("jqPolicy thresholds", () => {
@@ -21,12 +19,7 @@ describe("jqPolicy thresholds", () => {
     expect(shouldEnableAutocomplete(JQ_AUTOCOMPLETE_MAX_BYTES)).toBe(false);
   });
 
-  it("prefers native jq at 10 MB and above", () => {
-    expect(shouldPreferNative(JQ_NATIVE_MIN_BYTES - 1)).toBe(false);
-    expect(shouldPreferNative(JQ_NATIVE_MIN_BYTES)).toBe(true);
-  });
-
-  it("only highlights outputs below 150 KB", () => {
+  it("stops highlighting at the highlight cap and above", () => {
     expect(shouldHighlightOutput(JQ_HIGHLIGHT_MAX_BYTES - 1)).toBe(true);
     expect(shouldHighlightOutput(JQ_HIGHLIGHT_MAX_BYTES)).toBe(false);
   });

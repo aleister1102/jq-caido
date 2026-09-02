@@ -35,8 +35,7 @@ watch(
 <template>
   <div
     v-if="visible && suggestions.length > 0"
-    class="absolute left-0 right-0 top-full mt-1 bg-neutral-900 border border-white/10 rounded shadow-xl z-50 max-h-60 overflow-auto"
-    style="background-color: #1a1a1a;"
+    class="jq-suggestions"
     role="listbox"
   >
     <button
@@ -46,15 +45,13 @@ watch(
       type="button"
       role="option"
       :aria-selected="index === selectedIndex"
+      class="jq-suggestion"
+      :class="{ 'is-active': index === selectedIndex }"
       @click="emit('select', suggestion)"
       @mouseover="emit('hover', index)"
-      :class="[
-        'px-3 py-2 text-sm cursor-pointer flex items-center justify-between gap-2 transition-colors w-full text-left whitespace-nowrap',
-        index === selectedIndex ? 'bg-white/10 text-white' : 'text-white/60'
-      ]"
     >
-      <span class="min-w-0 flex-1 truncate" :title="suggestion.text">{{ suggestion.text }}</span>
-      <span class="text-[10px] uppercase opacity-40 px-1 border border-white/10 rounded shrink-0">
+      <span class="jq-suggestion-text min-w-0 flex-1 truncate" :title="suggestion.text">{{ suggestion.text }}</span>
+      <span class="jq-suggestion-type shrink-0">
         {{ suggestion.type === 'index' ? 'index' : suggestion.dataType }}
       </span>
     </button>
@@ -62,20 +59,73 @@ watch(
 </template>
 
 <style scoped>
-.max-h-60::-webkit-scrollbar {
+/* Colors and metrics are pinned instead of themed: Caido host styles override utility classes. */
+.jq-suggestions {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  z-index: 50;
+  margin-top: 4px;
+  max-height: 240px;
+  overflow: auto;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  background-color: #1a1a1a;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+}
+
+.jq-suggestion {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  border: 0;
+  background-color: transparent;
+  color: rgba(255, 255, 255, 0.62);
+  font-family: var(--font-mono, monospace);
+  font-size: 13px;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+
+.jq-suggestion.is-active {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.jq-suggestion-type {
+  padding: 0 4px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  color: rgba(150, 158, 170, 0.9);
+  font-size: 11px;
+}
+
+.jq-suggestion-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jq-suggestions::-webkit-scrollbar {
   width: 4px;
 }
 
-.max-h-60::-webkit-scrollbar-track {
+.jq-suggestions::-webkit-scrollbar-track {
   background: transparent;
 }
 
-.max-h-60::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
+.jq-suggestions::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
   border-radius: 2px;
-}
-
-.max-h-60::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
 }
 </style>

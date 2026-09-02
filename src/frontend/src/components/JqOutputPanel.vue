@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type { JqEngine, JqEnginePreference, JqHost } from "../../../shared/jqContract";
+import { durationLevel, inputByteLevel, outputByteLevel } from "../../../shared/jqPolicy";
 import { formatBytes } from "../lib/formatBytes";
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   stdout: string;
   displayOutput: string;
   shouldHighlight: boolean;
@@ -20,111 +21,87 @@ const props = defineProps<{
   hasRun: boolean;
   requiresManualRun: boolean;
   outputStatus: string;
-}>();
+  placeholder?: string;
+}>(), {
+  placeholder: "No output",
+});
 
 const emit = defineEmits<{
   (e: "copy"): void;
 }>();
 
-const selectedPreferenceLabel = computed(() => {
-  switch (props.enginePreference) {
-    case "native":
-      return "Native jq";
-    case "jq-wasm":
-      return "jq-wasm";
-    default:
-      return "Auto-select";
-  }
-});
 
 const resultEngineLabel = computed(() => {
-  switch (props.resultEngine) {
+  switch (props.resultEngine ?? props.enginePreference) {
     case "native":
       return "Native jq";
-    case "jq-wasm":
+    default:
       return "jq-wasm";
-    default:
-      return selectedPreferenceLabel.value;
   }
 });
 
-const currentEngineLabel = computed(() => {
-  if (props.hasRun) return resultEngineLabel.value;
-  return props.isLoading ? "Running" : "Not run";
-});
+const hostLabel = computed(() => (props.resultHost === "caido-backend-host" ? "Caido backend" : "Browser"));
+const showReadout = computed(() => props.hasRun || props.inputBytes > 0);
 
-const resultHostLabel = computed(() => {
-  switch (props.resultHost) {
-    case "browser":
-      return "Browser";
-    case "caido-backend-host":
-      return "Caido backend";
-    default:
-      return "-";
-  }
-});
+const inputLevel = computed(() => `is-${inputByteLevel(props.inputBytes)}`);
+const outputLevel = computed(() => `is-${outputByteLevel(props.stdoutBytes)}`);
+const timeLevel = computed(() => `is-${durationLevel(props.durationMs)}`);
 
 const copyLabel = computed(() => {
   if (props.isOutputTruncated) {
-    return props.outputCopied ? "✓ Copied Truncated Output" : "Copy Truncated Output";
+    return props.outputCopied ? "Copied truncated output" : "Copy truncated output";
   }
-  return props.outputCopied ? "✓ Copied" : "Copy Output";
+  return props.outputCopied ? "Copied" : "Copy output";
 });
 </script>
 
 <template>
-  <div class="flex-1 min-h-0 bg-black/20 border border-white/5 rounded overflow-hidden flex flex-col">
+  <div class="jq-output-panel">
     <pre
-      :class="[
-        'flex-1 p-4 m-0 overflow-auto text-sm font-mono whitespace-pre-wrap',
-        shouldHighlight ? 'language-json' : '',
-      ]"
-    ><code v-if="shouldHighlight" v-html="displayOutput || (isLoading ? 'Processing...' : 'No output')"></code><code v-else>{{ displayOutput || (isLoading ? 'Processing...' : 'No output') }}</code></pre>
-    <div
-      data-testid="jq-output-footer"
-      class="px-4 py-2.5 border-t border-white/5 flex items-center justify-between gap-4"
-    >
-      <div class="min-w-0 flex-1">
-        <div data-testid="jq-output-stats" class="jq-output-stats text-white/75">
-          <span class="jq-stat">
-            <span class="jq-stat-label">Mode:</span>
-            <span class="jq-stat-value truncate font-mono" :title="selectedPreferenceLabel">{{ selectedPreferenceLabel }}</span>
-          </span>
-          <span class="jq-stat">
-            <span class="jq-stat-label">Engine:</span>
-            <span class="jq-stat-value jq-engine-value truncate font-mono" :title="currentEngineLabel">{{ currentEngineLabel }}</span>
-          </span>
-          <span class="jq-stat">
-            <span class="jq-stat-label">Host:</span>
-            <span class="jq-stat-value truncate font-mono" :title="resultHostLabel">{{ resultHostLabel }}</span>
-          </span>
-          <span class="jq-stat">
-            <span class="jq-stat-label">Input:</span>
-            <span class="jq-stat-value font-mono tabular-nums">{{ formatBytes(inputBytes) }}</span>
-          </span>
-          <span class="jq-stat">
-            <span class="jq-stat-label">Output:</span>
-            <span class="jq-stat-value font-mono tabular-nums">{{ hasRun ? formatBytes(stdoutBytes) : "-" }}</span>
-          </span>
-          <span class="jq-stat">
-            <span class="jq-stat-label">Time:</span>
-            <span class="jq-stat-value font-mono tabular-nums">{{ hasRun ? `${Math.round(durationMs)} ms` : "-" }}</span>
-          </span>
-        </div>
-        <div
-          v-if="isOutputTruncated || isStderrTruncated || outputStatus || (requiresManualRun && !hasRun)"
-          class="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-amber-300"
-        >
-          <span v-if="isOutputTruncated">Truncated</span>
-          <span v-if="isStderrTruncated">Stderr truncated</span>
-          <span v-if="outputStatus">{{ outputStatus }}</span>
-          <span v-if="requiresManualRun && !hasRun">Manual run</span>
-        </div>
+      v-if="shouldHighlight"
+      class="jq-output-body language-json"
+      v-html="displayOutput"
+    ></pre>
+    <pre
+      v-else-if="displayOutput"
+      class="jq-output-body"
+      v-text="displayOutput"
+    ></pre>
+    <div v-else class="jq-output-empty">
+      {{ isLoading ? "Running jq..." : placeholder }}
+    </div>
+
+    <div v-if="showReadout" data-testid="jq-output-footer" class="jq-readout items-center">
+      <div data-testid="jq-output-stats" class="jq-output-stats">
+        <span class="jq-readout-item">
+          <span class="jq-readout-label">{{ hasRun ? "Engine" : "Mode" }}</span>
+          <span class="jq-readout-value">{{ resultEngineLabel }}</span>
+        </span>
+        <span v-if="hasRun && resultHost" class="jq-readout-item">
+          <span class="jq-readout-label">Host</span>
+          <span class="jq-readout-value">{{ hostLabel }}</span>
+        </span>
+        <span v-if="inputBytes > 0" class="jq-readout-item">
+          <span class="jq-readout-label">Input</span>
+          <span class="jq-readout-value" :class="inputLevel">{{ formatBytes(inputBytes) }}</span>
+        </span>
+        <span v-if="hasRun" class="jq-readout-item">
+          <span class="jq-readout-label">Output</span>
+          <span class="jq-readout-value" :class="outputLevel">{{ formatBytes(stdoutBytes) }}</span>
+        </span>
+        <span v-if="hasRun" class="jq-readout-item">
+          <span class="jq-readout-label">Time</span>
+          <span class="jq-readout-value" :class="timeLevel">{{ Math.round(durationMs) }} ms</span>
+        </span>
+        <span v-if="isOutputTruncated" class="jq-readout-flag is-critical">Output truncated</span>
+        <span v-if="isStderrTruncated" class="jq-readout-flag is-high">Stderr truncated</span>
+        <span v-if="outputStatus" class="jq-readout-flag is-high">{{ outputStatus }}</span>
+        <span v-if="requiresManualRun && !hasRun" class="jq-readout-flag is-high">Manual run</span>
       </div>
       <button
         v-if="stdout"
         type="button"
-        class="jq-copy-output shrink-0 px-2.5 py-1 rounded text-[11px] font-medium text-white transition-colors"
+        class="jq-copy-button jq-copy-output shrink-0"
         @click="emit('copy')"
       >
         {{ copyLabel }}
@@ -134,63 +111,151 @@ const copyLabel = computed(() => {
 </template>
 
 <style scoped>
-pre {
+/* Colors are pinned instead of themed: Caido host styles override utility classes. */
+.jq-output-panel {
+  --jq-well: rgba(9, 10, 12, 0.35);
+  --jq-hairline: rgba(255, 255, 255, 0.09);
+  --jq-text: rgba(233, 236, 242, 0.94);
+  --jq-label: rgba(150, 158, 170, 0.9);
+  --jq-lamp-normal: #57c98a;
+  --jq-lamp-high: #e3a83c;
+  --jq-lamp-critical: #e4646e;
+
+  position: relative;
+  flex: 1 1 0;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--jq-hairline);
+  border-radius: 4px;
+  background-color: var(--jq-well);
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.jq-output-body {
+  flex: 1 1 0;
+  width: 100%;
+  margin: 0;
+  padding: 8px 10px;
+  box-sizing: border-box;
+  overflow: auto;
+  color: var(--jq-text);
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, monospace);
+  font-size: 13px;
+  line-height: 1.5;
+  tab-size: 2;
+  white-space: pre-wrap;
+  word-break: break-word;
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+  scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
   user-select: text;
   cursor: text;
 }
 
-pre code {
-  user-select: text;
+.jq-output-body::selection,
+.jq-output-body *::selection {
+  background-color: rgba(76, 126, 243, 0.35);
+}
+
+.jq-output-empty {
+  flex: 1 1 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  color: var(--jq-label);
+  font-size: 13px;
+  text-align: center;
+}
+
+.jq-readout {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 14px;
+  padding: 4px 8px 4px 10px;
+  border-top: 1px solid var(--jq-hairline);
+  background-color: rgba(255, 255, 255, 0.02);
+  font-size: 11px;
 }
 
 .jq-output-stats {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
-  gap: 0.75rem;
-  overflow-x: auto;
-  font-size: 11px;
-  white-space: nowrap;
+  gap: 4px 14px;
 }
 
-.jq-stat {
+.jq-readout-item {
   display: inline-flex;
   align-items: baseline;
-  gap: 0.25rem;
-  flex: none;
+  gap: 6px;
 }
 
-.jq-stat-label {
-  color: rgba(255, 255, 255, 0.48);
+.jq-readout-label {
+  color: var(--jq-label);
 }
 
-.jq-stat-value {
-  color: rgba(255, 255, 255, 0.88);
+.jq-readout-value {
+  color: var(--jq-text);
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, monospace);
+  font-variant-numeric: tabular-nums;
 }
 
-.jq-engine-value {
-  color: #7dd3fc;
+.jq-readout-value.is-normal {
+  color: var(--jq-lamp-normal);
 }
 
-.jq-copy-output {
-  background-color: #0284c7;
+.jq-readout-value.is-high {
+  color: var(--jq-lamp-high);
 }
 
-.jq-copy-output:hover {
-  background-color: #0ea5e9;
+.jq-readout-value.is-critical {
+  color: var(--jq-lamp-critical);
 }
 
-pre::selection,
-pre *::selection {
-  background-color: rgba(100, 150, 255, 0.4);
+.jq-readout-flag {
+  color: var(--jq-lamp-high);
 }
 
-:deep(.token.property) { color: #9cdcfe; }
-:deep(.token.string) { color: #ce9178; }
-:deep(.token.number) { color: #b5cea8; }
-:deep(.token.boolean) { color: #569cd6; }
-:deep(.token.null) { color: #569cd6; }
-:deep(.token.operator) { color: #d4d4d4; }
-:deep(.token.punctuation) { color: #d4d4d4; }
+.jq-readout-flag.is-critical {
+  color: var(--jq-lamp-critical);
+}
+
+/* Flat clean button matching toolbar buttons */
+.jq-copy-button {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 78px;
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--jq-hairline);
+  border-radius: 5px;
+  background-color: var(--jq-surface);
+  color: var(--jq-text);
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.jq-copy-button:hover {
+  background-color: var(--jq-surface-hover);
+  border-color: var(--jq-hairline-strong);
+  color: #fff;
+}
+:deep(.token.property) { color: #9ecbff; }
+:deep(.token.string) { color: #e8a06a; }
+:deep(.token.number) { color: #a8d8a0; }
+:deep(.token.boolean) { color: #7fb2f0; }
+:deep(.token.null) { color: #7fb2f0; }
+:deep(.token.operator) { color: rgba(233, 236, 242, 0.8); }
+:deep(.token.punctuation) { color: rgba(233, 236, 242, 0.65); }
 </style>

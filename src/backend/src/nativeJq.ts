@@ -33,6 +33,7 @@ let availabilityCache: NativeJqAvailability | null = null;
 let availabilityCacheAt = 0;
 let availabilityProbePromise: Promise<NativeJqAvailability> | null = null;
 
+
 function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((entry) => typeof entry === "string");
 }
@@ -63,18 +64,17 @@ function decodeChunkText(chunks: Uint8Array[], totalBytes: number): { text: stri
   }
 
   const merged = concatByteChunks(chunks, totalBytes);
-  for (let trimBytes = 0; trimBytes <= 3 && trimBytes <= merged.byteLength; trimBytes += 1) {
-    const candidateBytes = merged.byteLength - trimBytes;
-    const text = Buffer.from(merged.subarray(0, candidateBytes)).toString("utf8");
+  const buf = Buffer.from(merged.buffer, merged.byteOffset, merged.byteLength);
+  for (let trimBytes = 0; trimBytes <= 3 && trimBytes <= buf.length; trimBytes += 1) {
+    const candidateBytes = buf.length - trimBytes;
+    const slice = buf.subarray(0, candidateBytes);
+    const text = slice.toString("utf8");
     if (Buffer.byteLength(text, "utf8") === candidateBytes) {
-      return {
-        text,
-        bytes: candidateBytes,
-      };
+      return { text, bytes: candidateBytes };
     }
   }
 
-  return { text: "", bytes: 0 };
+  return { text: buf.toString("utf8"), bytes: buf.length };
 }
 
 export function validateNativeJqRequest(request: NativeJqRequest): NativeJqRequest {
@@ -232,7 +232,7 @@ export async function runNativeJqTask(
   }
 
   return new Promise<JqExecutionResult>((resolve, reject) => {
-    const start = performance.now();
+    const start = Date.now();
     const child = spawnFn("jq", [...validated.flags, validated.query], {
       stdio: ["pipe", "pipe", "pipe"],
     });
@@ -314,7 +314,7 @@ export async function runNativeJqTask(
     child.on("close", (code) => {
       cleanup();
 
-      const durationMs = performance.now() - start;
+      const durationMs = Date.now() - start;
       if (state.cancelled) {
         finish({
           engine: "native",
@@ -367,7 +367,13 @@ export async function runNativeJqTask(
       });
     });
 
-    child.stdin?.write(validated.input);
-    child.stdin?.end();
+    if (child.stdin) {
+      if (typeof (child.stdin as any).write === "function") {
+        (child.stdin as any).write(validated.input);
+        child.stdin.end();
+      } else {
+        (child.stdin as any).end(validated.input);
+      }
+    }
   });
 }

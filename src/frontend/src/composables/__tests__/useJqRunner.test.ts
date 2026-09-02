@@ -40,17 +40,18 @@ describe("useJqRunner", () => {
     const { useJqRunner } = await import("../useJqRunner");
     const scope = effectScope();
     const state = scope.run(() =>
-      useJqRunner(
-        computed(() => '{"big":true}'),
-        shallowRef<Uint8Array | null>(null),
-        ref(JQ_AUTO_RUN_MAX_BYTES),
-        ref("."),
-        ref(false),
-        ref(false),
-        ref(false),
-        ref(false),
-        computed(() => false),
-      ),
+      useJqRunner({
+        bodyText: computed(() => '{"big":true}'),
+        bodyBytes: shallowRef<Uint8Array | null>(null),
+        bodyByteLength: ref(JQ_AUTO_RUN_MAX_BYTES),
+        query: ref("."),
+        isCompact: ref(false),
+        isRaw: ref(false),
+        keysOnly: ref(false),
+        filterNulls: ref(false),
+        isOversized: computed(() => false),
+        isContentBlocked: computed(() => false),
+      }),
     )!;
 
     await nextTick();
@@ -96,17 +97,18 @@ describe("useJqRunner", () => {
     const query = ref(".");
     const scope = effectScope();
     const state = scope.run(() =>
-      useJqRunner(
-        computed(() => "[]"),
-        shallowRef(new TextEncoder().encode("[]")),
-        ref(2),
+      useJqRunner({
+        bodyText: computed(() => "[]"),
+        bodyBytes: shallowRef(new TextEncoder().encode("[]")),
+        bodyByteLength: ref(2),
         query,
-        ref(false),
-        ref(false),
-        ref(false),
-        ref(false),
-        computed(() => false),
-      ),
+        isCompact: ref(false),
+        isRaw: ref(false),
+        keysOnly: ref(false),
+        filterNulls: ref(false),
+        isOversized: computed(() => false),
+        isContentBlocked: computed(() => false),
+      }),
     )!;
 
     await nextTick();
@@ -170,17 +172,18 @@ describe("useJqRunner", () => {
     const query = ref(".");
     const scope = effectScope();
     const state = scope.run(() =>
-      useJqRunner(
-        computed(() => "[]"),
-        shallowRef(new TextEncoder().encode("[]")),
-        ref(2),
+      useJqRunner({
+        bodyText: computed(() => "[]"),
+        bodyBytes: shallowRef(new TextEncoder().encode("[]")),
+        bodyByteLength: ref(2),
         query,
-        ref(false),
-        ref(false),
-        ref(false),
-        ref(false),
-        computed(() => false),
-      ),
+        isCompact: ref(false),
+        isRaw: ref(false),
+        keysOnly: ref(false),
+        filterNulls: ref(false),
+        isOversized: computed(() => false),
+        isContentBlocked: computed(() => false),
+      }),
     )!;
 
     await nextTick();

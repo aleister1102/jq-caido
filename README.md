@@ -6,19 +6,21 @@ Inspired by [burp-jq](https://github.com/synacktiv/burp-jq) (Synacktiv).
 
 ## Features
 
-- Interactive `jq` queries with **Auto-select**, **jq-wasm**, and **Native jq** engine controls.
+- Interactive `jq` queries on the bundled **jq-wasm** engine, with an optional **Native jq** engine control.
+- Request and response bodies are only parsed when `Content-Type` is JSON. Other types show a full-view prompt with a **Parse anyway** button.
+- Default flags: `Raw` and `No Nulls` on, `Compact` and `Keys` off.
 - `jq-wasm` upgraded to `3.0.0-jq-1.8.2`, using the inline build so the packaged worker does not need to resolve a separate `.wasm` URL.
 - Optional backend `jq` execution on the **Caido backend host** when `jq` is available on `PATH`.
 - Autocomplete for smaller payloads, with large-payload parsing disabled before it becomes expensive.
-- Output metadata for engine, input size, output size, duration, and visible truncation state.
+- A readout under the output shows engine, host, input size, output size, and run time, coloring the three measurements green, amber, or red as they approach the plugin limits.
 - Output copy only copies retained output, and labels truncated copies clearly.
 
 ## Engine Policy
 
 - Auto-run is enabled only below `2,000,000` bytes.
 - Autocomplete parsing is enabled only below `4,000,000` bytes.
-- Auto-select mode prefers **Native jq** at `10,000,000` bytes and above when backend `jq --version` succeeds.
-- Syntax highlighting runs only below `150,000` output bytes.
+- Non-JSON `Content-Type` bodies are skipped, and the view is covered by a **Parse anyway** prompt until you force a run.
+- Syntax highlighting runs only below `400,000` output bytes.
 - `stdout` is capped at `512 KiB`; `stderr` is capped at `64 KiB`.
 - Inputs above `50,000,000` bytes are rejected.
 
@@ -30,9 +32,9 @@ Native mode is optional. To enable it:
 
 1. Install `jq` on the machine running the Caido backend.
 2. Make sure `jq` is available on `PATH` for Caido's backend process.
-3. Select **Native jq**, or leave the plugin on **Auto-select** for `10 MB+` payloads.
+3. Select **Native jq**.
 
-If **Native jq** is selected explicitly and unavailable, the plugin returns a readable error instead of silently switching engines. In **Auto-select** mode, it falls back to `jq-wasm`.
+If **Native jq** is selected and unavailable, the plugin returns a readable error instead of silently switching engines. Nothing else breaks when the host has no `jq`: the default **jq-wasm** engine is bundled with the plugin and runs in the browser.
 
 ## Relationship to [Panes](https://github.com/caido-community/Panes)
 
@@ -78,16 +80,32 @@ It generates `1 MB`, `6 MB`, and `20 MB` payloads in memory and runs two scenari
 
 The script prints machine, Caido, `jq`, and `jq-wasm` version information before the timing table. Results are environment-dependent and should be treated as local reference data, not guarantees.
 
-Reference local CLI medians from three runs on 2026-07-13 after the PR 2 cleanup:
+Reference local CLI medians from runs on 2026-09-02:
 
-- Machine: `darwin 25.5.0 arm64`, `Apple M4 Max`
-- Bun: `1.3.14`
-- Node: `24.3.0`
+- Machine: `darwin 25.6.0 arm64`, `Apple M4 Max`
+- Bun: `1.4.0`
+- Node: `26.3.0`
 - Caido: `n/a (benchmark runs outside Caido)`
 - `jq-wasm`: `jq-1.8.2`
 - `jq`: `jq-1.7.1-apple`
-- `20 MB` `.items[0:10]`: `jq-wasm 273.5 ms`, `native jq 249.8 ms`
-- `20 MB` `.`: `jq-wasm 679.3 ms`, `native jq 1118.7 ms`
+- `20 MB` `.items[0:10]`: `jq-wasm 280.3 ms`, `native jq 257.3 ms`
+- `20 MB` `.`: `jq-wasm 632.6 ms`, `native jq 1124.8 ms`
+
+### Syntax highlighting
+
+Highlighting is bounded by DOM cost, not by Prism. Medians of five runs in Chromium on `Apple M4 Max`, rendering jq pretty output into the plugin's scroll container, with the plain-text path as the baseline:
+
+|Output|Prism|DOM insert|Total|Plain text|Highlight surcharge|DOM nodes|
+|---:|---:|---:|---:|---:|---:|---:|
+|72 KB|6.5 ms|24.2 ms|30.7 ms|7.7 ms|+23 ms|8.2 k|
+|169 KB|9.2 ms|55.7 ms|64.9 ms|17.5 ms|+47 ms|19.0 k|
+|266 KB|16.9 ms|88.8 ms|105.7 ms|27.5 ms|+78 ms|29.9 k|
+|388 KB|31.2 ms|131.0 ms|162.2 ms|40.3 ms|+122 ms|43.5 k|
+|533 KB|40.6 ms|177.2 ms|217.8 ms|55.7 ms|+162 ms|59.8 k|
+
+With the CPU throttled 4x, the same payloads cost `293 ms` (169 KB), `446 ms` (266 KB), `633 ms` (388 KB), and `909 ms` (533 KB). Compact (`-c`) output of the same byte size lands within 10% of these numbers despite holding 40% more DOM nodes.
+
+`JQ_HIGHLIGHT_MAX_BYTES` is therefore `400,000`: the largest size where a re-render still reads as a step rather than a stall on a slow machine. `stdout` is capped at `512 KiB`, so only outputs in the top fifth of the possible range fall back to plain text.
 
 ## Development
 
